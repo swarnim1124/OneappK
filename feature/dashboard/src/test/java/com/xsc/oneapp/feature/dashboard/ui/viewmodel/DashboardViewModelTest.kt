@@ -1,0 +1,162 @@
+package com.xsc.oneapp.feature.dashboard.ui.viewmodel
+
+import com.xsc.oneapp.core.dashboard.DashboardStatContribution
+import com.xsc.oneapp.core.dashboard.DashboardStatProvider
+import com.xsc.oneapp.feature.dashboard.domain.model.ModuleItem
+import com.xsc.oneapp.feature.dashboard.domain.usecase.GetAccessibleModulesUseCase
+import com.xsc.oneapp.feature.dashboard.domain.usecase.GetPinnedModuleIdsUseCase
+import com.xsc.oneapp.feature.dashboard.domain.usecase.TogglePinnedModuleUseCase
+import com.xsc.sdk.auth.SessionManager
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class DashboardViewModelTest {
+
+    private lateinit var sessionManager: SessionManager
+    private lateinit var getAccessibleModulesUseCase: GetAccessibleModulesUseCase
+    private lateinit var getPinnedModuleIdsUseCase: GetPinnedModuleIdsUseCase
+    private lateinit var togglePinnedModuleUseCase: TogglePinnedModuleUseCase
+
+    private val curriculum = ModuleItem(
+        "academics", "Curriculum", "school", "/academics", ModuleItem.ModuleStatus.ACTIVE, "#4F46E5"
+    )
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+        sessionManager = mockk()
+        getAccessibleModulesUseCase = mockk()
+        getPinnedModuleIdsUseCase = mockk()
+        togglePinnedModuleUseCase = mockk()
+        every { sessionManager.getDisplayName() } returns "Student One"
+        every { sessionManager.currentEmail } returns MutableStateFlow("student@oneapp.local")
+        every { sessionManager.currentRole } returns MutableStateFlow("student")
+        every { getPinnedModuleIdsUseCase() } returns emptySet()
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun viewModel(statProviders: Set<DashboardStatProvider> = emptySet()) = DashboardViewModel(
+        sessionManager,
+        getAccessibleModulesUseCase,
+        getPinnedModuleIdsUseCase,
+        togglePinnedModuleUseCase,
+        statProviders
+    )
+
+    @Test
+    fun `session data populates the user header fields`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+
+        val vm = viewModel()
+
+        assertEquals("Student One", vm.state.value.userName)
+        assertEquals("student@oneapp.local", vm.state.value.userEmail)
+        assertEquals("student", vm.state.value.userRole)
+    }
+
+    @Test
+    fun `accessible modules from the use case populate the module list and placeholder stats`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns listOf(curriculum)
+
+        val vm = viewModel()
+
+        assertEquals(1, vm.state.value.modules.size)
+        assertEquals("academics", vm.state.value.modules.first().id)
+        assertEquals("Curriculum", vm.state.value.modules.first().displayName)
+        assertEquals(4, vm.state.value.stats.size)
+        assertEquals(4, vm.state.value.quickActions.size)
+    }
+
+    @Test
+    fun `role subtitle maps a known role to its display title`() {
+        every { sessionManager.currentRole } returns MutableStateFlow("teacher")
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+
+        val vm = viewModel()
+
+        assertEquals("Associate Professor", vm.getRoleSubtitle())
+    }
+
+    @Test
+    fun `pinned module ids are loaded from the use case on init`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+        every { getPinnedModuleIdsUseCase() } returns setOf("academics")
+
+        val vm = viewModel()
+
+        assertEquals(setOf("academics"), vm.state.value.pinnedModuleIds)
+    }
+
+    @Test
+    fun `togglePinnedModule delegates to the use case and updates state`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+        every { togglePinnedModuleUseCase("attendance") } returns setOf("attendance")
+
+        val vm = viewModel()
+        vm.togglePinnedModule("attendance")
+
+        assertEquals(setOf("attendance"), vm.state.value.pinnedModuleIds)
+    }
+
+    @Test
+    fun `openPinPicker and closePinPicker toggle the dialog flag`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+
+        val vm = viewModel()
+        vm.openPinPicker()
+        assertEquals(true, vm.state.value.isPinPickerOpen)
+
+        vm.closePinPicker()
+        assertFalse(vm.state.value.isPinPickerOpen)
+    }
+
+    @Test
+    fun `a registered stat provider overrides its matching placeholder stat`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+        val attendanceProvider = object : DashboardStatProvider {
+            override val statId = "attendance"
+            override suspend fun provideStat() =
+                DashboardStatContribution("attendance", "ATTENDANCE", "92%", "Live")
+        }
+
+        val vm = viewModel(statProviders = setOf(attendanceProvider))
+
+        val attendanceStat = vm.state.value.stats.first { it.id == "attendance" }
+        assertEquals("92%", attendanceStat.value)
+        assertEquals("Live", attendanceStat.tag)
+        val feesStat = vm.state.value.stats.first { it.id == "fees" }
+        assertEquals("--", feesStat.value)
+    }
+
+    @Test
+    fun `a stat provider returning null leaves the placeholder untouched`() = runTest {
+        coEvery { getAccessibleModulesUseCase() } returns emptyList()
+        val silentProvider = object : DashboardStatProvider {
+            override val statId = "attendance"
+            override suspend fun provideStat(): DashboardStatContribution? = null
+        }
+
+        val vm = viewModel(statProviders = setOf(silentProvider))
+
+        val attendanceStat = vm.state.value.stats.first { it.id == "attendance" }
+        assertEquals("--", attendanceStat.value)
+    }
+}

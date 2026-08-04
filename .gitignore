@@ -1,0 +1,41 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Project exclude paths
+# The hand-listed per-module /feature/x/build/ entries below missed several
+# modules (feature/fee, feature/timetable, app, build-logic, sdk/...), which is
+# how build/.transforms/**/*.dex ended up staged by `git add -A` with Windows
+# MAX_PATH-busting generated filenames. A single recursive pattern covers every
+# module's build/ dir regardless of nesting or module additions going forward.
+**/build/
+# JVM heap dumps
+*.hprof
+
+# Logs
+*.log
+
+# Firebase client config. Contains the project id and Android API key. The key is
+# restricted by package name + signing certificate rather than being a bearer secret,
+# but it identifies the project, so keep it out of the repo and distribute it through
+# CI secrets instead.
+google-services.json
+
+# Signing material - must never be committed.
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+ftl-service-account.json

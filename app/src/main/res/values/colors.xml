@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Mirrors OneAppBackgroundLight in XscThemeSDK's Color.kt. Used only for the
+        pre-Compose window background so cold start does not flash white; the running
+        UI takes its background from the Compose theme.
+        The values-night variant mirrors OneAppBackgroundDark.
+    -->
+    <color name="oneapp_window_background">#FAFAFA</color>
+</resources>

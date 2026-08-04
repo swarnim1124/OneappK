@@ -1,0 +1,145 @@
+package com.xsc.oneapp.feature.profile.ui.screen
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xsc.oneapp.feature.profile.ui.components.EmptyState
+import com.xsc.oneapp.feature.profile.ui.components.ErrorState
+import com.xsc.oneapp.feature.profile.ui.components.LoadingState
+import com.xsc.oneapp.feature.profile.ui.components.ProfileContentColumn
+import com.xsc.oneapp.feature.profile.ui.components.ProfileFormCard
+import com.xsc.oneapp.feature.profile.ui.components.ProfileHeaderRow
+import com.xsc.oneapp.feature.profile.ui.components.ProfileScaffold
+import com.xsc.oneapp.feature.profile.ui.state.AcademicDetailEvent
+import com.xsc.oneapp.feature.profile.ui.state.AcademicDetailState
+import com.xsc.oneapp.feature.profile.ui.viewmodel.AcademicDetailViewModel
+import com.xsc.sdk.commonui.button.PrimaryButton
+import com.xsc.sdk.commonui.textfield.PremiumTextField
+import com.xsc.sdk.theme.LocalSpacing
+
+/**
+ * Restyled only. The load event, the identifier lookup by type, the `ifEmpty { null }`
+ * normalisation and the `SaveAcademicIdentifiers` payload are all unchanged.
+ * `onNavigateBack` - previously accepted but never rendered - is wired to the up button.
+ */
+@Composable
+fun AcademicDetailScreen(
+    viewModel: AcademicDetailViewModel = hiltViewModel(),
+    onNavigateBack: () -> Unit
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val scrollState = rememberScrollState()
+    val spacing = LocalSpacing.current
+
+    LaunchedEffect(Unit) {
+        viewModel.onEvent(AcademicDetailEvent.LoadAcademicDetail)
+    }
+
+    ProfileScaffold(title = "Academic identifiers", onNavigateBack = onNavigateBack) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            when (val currentState = state) {
+                is AcademicDetailState.Loading -> LoadingState()
+
+                is AcademicDetailState.Success -> {
+                    val detail = currentState.academicDetail
+
+                    var idCardNumber by remember {
+                        mutableStateOf(detail.identifiers.find { it.type == "idCardNumber" }?.identifierValue ?: "")
+                    }
+                    var biometricId by remember {
+                        mutableStateOf(detail.identifiers.find { it.type == "biometricId" }?.identifierValue ?: "")
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(
+                                horizontal = spacing.screenHorizontal,
+                                vertical = spacing.xl
+                            )
+                    ) {
+                        ProfileContentColumn {
+                            ProfileHeaderRow(
+                                icon = Icons.Default.Badge,
+                                title = "Enrollment ${detail.enrollmentNumber}",
+                                subtitle = detail.employeeCode
+                                    .takeIf { it.isNotEmpty() }
+                                    ?.let { "Employee code $it" }
+                            )
+
+                            ProfileFormCard {
+                                PremiumTextField(
+                                    text = idCardNumber,
+                                    onTextChange = { idCardNumber = it },
+                                    placeholder = "ID card number",
+                                    imeAction = ImeAction.Next
+                                )
+                                PremiumTextField(
+                                    text = biometricId,
+                                    onTextChange = { biometricId = it },
+                                    placeholder = "Biometric ID",
+                                    imeAction = ImeAction.Done
+                                )
+                            }
+
+                            PrimaryButton(
+                                text = "Update identifiers",
+                                onClick = {
+                                    viewModel.onEvent(
+                                        AcademicDetailEvent.SaveAcademicIdentifiers(
+                                            idCardNumber = idCardNumber.ifEmpty { null },
+                                            biometricId = biometricId.ifEmpty { null }
+                                        )
+                                    )
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(spacing.xxl))
+                    }
+                }
+
+                is AcademicDetailState.BusinessError -> ErrorState(message = currentState.message) {
+                    viewModel.onEvent(AcademicDetailEvent.LoadAcademicDetail)
+                }
+
+                is AcademicDetailState.NetworkError -> ErrorState(message = currentState.message) {
+                    viewModel.onEvent(AcademicDetailEvent.LoadAcademicDetail)
+                }
+
+                is AcademicDetailState.UnexpectedError -> ErrorState(message = currentState.message) {
+                    viewModel.onEvent(AcademicDetailEvent.LoadAcademicDetail)
+                }
+
+                // Empty is not a failure, so it no longer renders the red error treatment.
+                is AcademicDetailState.Empty -> EmptyState(
+                    message = "No academic identifiers on record yet.",
+                    actionLabel = "Reload",
+                    onAction = { viewModel.onEvent(AcademicDetailEvent.LoadAcademicDetail) }
+                )
+            }
+        }
+    }
+}

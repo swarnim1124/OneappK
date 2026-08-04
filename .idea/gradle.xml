@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <compositeConfiguration>
+          <compositeBuild compositeDefinitionSource="SCRIPT">
+            <builds>
+              <build path="$PROJECT_DIR$/build-logic" name="build-logic">
+                <projects>
+                  <project path="$PROJECT_DIR$/build-logic" />
+                </projects>
+              </build>
+            </builds>
+          </compositeBuild>
+        </compositeConfiguration>
+        <option name="testRunner" value="CHOOSE_PER_TEST" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="#GRADLE_LOCAL_JAVA_HOME" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/app" />
+            <option value="$PROJECT_DIR$/build-logic" />
+            <option value="$PROJECT_DIR$/core" />
+            <option value="$PROJECT_DIR$/feature" />
+            <option value="$PROJECT_DIR$/feature/attendance" />
+            <option value="$PROJECT_DIR$/feature/curriculum" />
+            <option value="$PROJECT_DIR$/feature/dashboard" />
+            <option value="$PROJECT_DIR$/feature/exam" />
+            <option value="$PROJECT_DIR$/feature/fee" />
+            <option value="$PROJECT_DIR$/feature/login" />
+            <option value="$PROJECT_DIR$/feature/profile" />
+            <option value="$PROJECT_DIR$/feature/timetable" />
+            <option value="$PROJECT_DIR$/sdk" />
+            <option value="$PROJECT_DIR$/sdk/XscAnalyticsSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscAuthSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscCameraSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscChatSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscCommonUI" />
+            <option value="$PROJECT_DIR$/sdk/XscFileSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscMediaSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscNetworkSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscNotificationSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscQRCodeSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscStorageSDK" />
+            <option value="$PROJECT_DIR$/sdk/XscThemeSDK" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

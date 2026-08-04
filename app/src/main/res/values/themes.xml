@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        DayNight rather than the previous android:Theme.Material.Light.NoActionBar.
+
+        That parent is the legacy platform Light theme and is permanently light, so with
+        enableEdgeToEdge() the system bars kept light-mode icon tinting while Compose
+        rendered the dark scheme underneath - dark icons on a dark background. Switching
+        the parent lets the platform follow the system setting; Compose colours are
+        unaffected because they come from OneAppTheme, not from here.
+
+        windowBackground is set so the cold-start window matches the app background
+        instead of flashing white before the first frame.
+    -->
+    <style name="Theme.OneApp" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowBackground">@color/oneapp_window_background</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+    </style>
+</resources>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Login Screen -->
+    <string name="welcome_back">Welcome Back</string>
+    <string name="sign_in_subtitle">Sign in to continue to OneApp</string>
+    <string name="email_label">Email</string>
+    <string name="password_label">Password</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="sign_in">Sign In</string>
+    <string name="verification_code_title">Verification Code</string>
+    <string name="refresh_captcha">Refresh CAPTCHA</string>
+    <string name="verification_code_hint">Enter verification code</string>
+    <string name="terms_and_privacy">By continuing you agree to our\nTerms &amp; Privacy Policy</string>
+    <string name="email_password_required">Please enter email and password</string>
+    <string name="back_to_login">Back to Login</string>
+
+    <!-- Forgot Password Screen -->
+    <string name="forgot_password_title">Forgot Password</string>
+    <string name="forgot_password_subtitle">Enter your email address and we\'ll send you a verification code</string>
+    <string name="send_reset_link">Send Reset Link</string>
+    <string name="reset_link_sent">Verification code sent to your email</string>
+
+    <!-- Verification Screen -->
+    <string name="verification_subtitle">Enter the 6-digit code sent to %s</string>
+    <string name="verify_code">Verify Code</string>
+    <string name="resend_code">Resend Code</string>
+
+    <!-- Reset Password Screen -->
+    <string name="reset_password_title">Reset Password</string>
+    <string name="reset_password_subtitle">Create a new password for your account</string>
+    <string name="new_password_label">New Password</string>
+    <string name="confirm_password_label">Confirm Password</string>
+    <string name="reset_password_button">Reset Password</string>
+    <string name="password_reset_success">Password reset successfully</string>
+    <string name="passwords_do_not_match">Passwords do not match</string>
+    <string name="password_too_short">Password must be at least 6 characters</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_email_icon">Email icon</string>
+    <string name="cd_password_icon">Password icon</string>
+    <string name="cd_back_button">Back button</string>
+</resources>
