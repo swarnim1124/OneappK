@@ -2,6 +2,7 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
 import com.xsc.oneapp.feature.profile.domain.usecase.GetPersonalDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdatePersonalDetailUseCase
 import com.xsc.oneapp.feature.profile.ui.state.PersonalDetailEffect
@@ -46,9 +47,11 @@ class PersonalDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = PersonalDetailState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = PersonalDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("Could not load personal detail")
+                _state.value = PersonalDetailState.NetworkError(appError.message, appError)
             } catch (e: APIError.HttpError) {
-                _state.value = PersonalDetailState.UnexpectedError("Server error")
+                val appError = e.toAppError("Could not load personal detail")
+                _state.value = PersonalDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -67,7 +70,11 @@ class PersonalDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = PersonalDetailState.BusinessError(e.message ?: "Failed to update profile")
             } catch (e: APIError.NetworkError) {
-                _state.value = PersonalDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("Could not update personal detail")
+                _state.value = PersonalDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("Could not update personal detail")
+                _state.value = PersonalDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

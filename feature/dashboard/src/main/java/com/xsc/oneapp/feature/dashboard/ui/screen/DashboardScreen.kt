@@ -46,13 +46,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +71,8 @@ import com.xsc.oneapp.feature.dashboard.ui.components.SidebarView
 import com.xsc.oneapp.feature.dashboard.ui.components.StatCardView
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardState
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardViewModel
+import com.xsc.sdk.commonui.avatar.InitialsAvatar
+import com.xsc.sdk.commonui.menu.MenuRow
 import com.xsc.sdk.theme.LocalDarkTheme
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.LocalThemeToggle
@@ -103,6 +103,7 @@ fun DashboardScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             DashboardTopBar(
+                userName = state.userName,
                 onMenuTap = { viewModel.toggleSidebar() },
                 unreadCount = state.unreadNotifications,
                 onNotificationTap = { viewModel.setTab(DashboardTab.NOTIFICATIONS) },
@@ -138,7 +139,18 @@ fun DashboardScreen(
 
             BottomTabBar(
                 selectedTab = state.selectedTab,
-                onTabSelected = { viewModel.setTab(it) }
+                onTabSelected = { tab ->
+                    // Curriculum has no dashboard-owned tab content of its own - unlike
+                    // Home/Notifications/Profile, "selecting" it should mean navigating
+                    // to the real :feature:curriculum screen (the same destination the
+                    // module grid tile opens), not switching to CurriculumTab()'s
+                    // hardcoded placeholder.
+                    if (tab == DashboardTab.CURRICULUM) {
+                        onNavigateToModule("curriculum")
+                    } else {
+                        viewModel.setTab(tab)
+                    }
+                }
             )
         }
 
@@ -301,26 +313,7 @@ private fun ProfileTab(
     ) {
         Spacer(modifier = Modifier.height(spacing.xxl))
 
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.tertiary
-                        )
-                    ),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                state.userName.take(1).uppercase(),
-                style = MaterialTheme.typography.headlineMedium,
-                color = Color.White
-            )
-        }
+        InitialsAvatar(name = state.userName)
 
         Spacer(modifier = Modifier.height(spacing.lg))
         Text(
@@ -351,21 +344,17 @@ private fun ProfileTab(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(
-                1.dp,
-                MaterialTheme.colorScheme.outlineVariant
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
-            ProfileRow(Icons.Default.PersonOutline, "Edit profile") { onNavigateToModule("/profile") }
+            MenuRow(Icons.Default.PersonOutline, "Edit profile", showChevron = true) { onNavigateToModule("/profile") }
             RowDivider()
-            ProfileRow(Icons.Default.Lock, "Change password", onClick = onChangePassword)
+            MenuRow(Icons.Default.Lock, "Change password", onClick = onChangePassword, showChevron = true)
             RowDivider()
-            ProfileRow(Icons.Default.NotificationsNone, "Notifications", onClick = onNotificationsClick)
+            MenuRow(Icons.Default.NotificationsNone, "Notifications", onClick = onNotificationsClick, showChevron = true)
             RowDivider()
-            ProfileRow(Icons.AutoMirrored.Filled.HelpOutline, "Help & support") { onNavigateToModule("/help") }
+            MenuRow(Icons.AutoMirrored.Filled.HelpOutline, "Help & support", showChevron = true) { onNavigateToModule("/help") }
             RowDivider()
-            ProfileRow(Icons.Default.Info, "About OneApp") { onNavigateToModule("/about") }
+            MenuRow(Icons.Default.Info, "About OneApp", showChevron = true) { onNavigateToModule("/about") }
         }
 
         Spacer(modifier = Modifier.height(spacing.lg))
@@ -377,7 +366,7 @@ private fun ProfileTab(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.errorContainer
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -413,40 +402,3 @@ private fun RowDivider() {
     )
 }
 
-@Composable
-private fun ProfileRow(icon: ImageVector, title: String, onClick: () -> Unit = {}) {
-    val spacing = LocalSpacing.current
-
-    Surface(
-        onClick = onClick,
-        color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 56.dp)
-                .padding(horizontal = spacing.lg),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(spacing.lg))
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-        }
-    }
-}

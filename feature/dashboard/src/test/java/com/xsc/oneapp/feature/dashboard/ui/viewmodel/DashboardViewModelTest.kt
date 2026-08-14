@@ -43,7 +43,7 @@ class DashboardViewModelTest {
         getPinnedModuleIdsUseCase = mockk()
         togglePinnedModuleUseCase = mockk()
         every { sessionManager.getDisplayName() } returns "Student One"
-        every { sessionManager.currentEmail } returns MutableStateFlow("student@oneapp.local")
+        every { sessionManager.getEmail() } returns "student@oneapp.local"
         every { sessionManager.currentRole } returns MutableStateFlow("student")
         every { getPinnedModuleIdsUseCase() } returns emptySet()
     }

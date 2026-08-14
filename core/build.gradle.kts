@@ -15,11 +15,12 @@ dependencies {
 
     // Compiles and links regardless of whether the google-services/crashlytics
     // Gradle plugins are applied - those are only needed for config injection and
-    // mapping-file upload, not for the SDK classes themselves. See CrashReporter.kt:
-    // every call is guarded, so this is safe to have active before
-    // app/google-services.json is fixed (see app/build.gradle.kts).
+    // mapping-file upload, not for the SDK classes themselves. See CrashReporter.kt
+    // and RemoteConfigProvider.kt: every call is guarded, so this is safe to have
+    // active before app/google-services.json is fixed (see app/build.gradle.kts).
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.config)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

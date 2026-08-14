@@ -2,6 +2,7 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
 import com.xsc.oneapp.feature.profile.domain.usecase.GetMedicalDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdateMedicalDetailUseCase
 import com.xsc.oneapp.feature.profile.ui.state.MedicalDetailEffect
@@ -49,7 +50,11 @@ class MedicalDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = MedicalDetailState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = MedicalDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("medical detail")
+                _state.value = MedicalDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("medical detail")
+                _state.value = MedicalDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -68,7 +73,11 @@ class MedicalDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = MedicalDetailState.BusinessError(e.message ?: "Failed to update detail")
             } catch (e: APIError.NetworkError) {
-                _state.value = MedicalDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("medical detail")
+                _state.value = MedicalDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("medical detail")
+                _state.value = MedicalDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

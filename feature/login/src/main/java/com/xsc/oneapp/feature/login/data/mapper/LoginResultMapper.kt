@@ -18,8 +18,8 @@ object LoginResultMapper {
     fun toDomain(dto: LoginResultDTO): LoginResult = LoginResult(
         token = dto.token,
         refreshToken = dto.refreshToken,
-        captchaRequired = dto.captchaRequired ?: false,
-        institutionId = dto.user?.institutionId
+        institutionId = dto.user?.institutionId,
+        email = dto.user?.email
     )
 
     fun toDomain(dto: ForgotPasswordResultDTO): ForgotPasswordResult = ForgotPasswordResult(

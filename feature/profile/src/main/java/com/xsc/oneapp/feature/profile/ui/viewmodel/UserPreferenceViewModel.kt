@@ -2,7 +2,9 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
 import com.xsc.oneapp.feature.profile.domain.usecase.GetUserPreferenceUseCase
+import com.xsc.oneapp.feature.profile.domain.usecase.ResetUserPreferenceUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdateUserPreferenceUseCase
 import com.xsc.oneapp.feature.profile.ui.state.UserPreferenceEffect
 import com.xsc.oneapp.feature.profile.ui.state.UserPreferenceEvent
@@ -20,7 +22,8 @@ import javax.inject.Inject
 @HiltViewModel
 class UserPreferenceViewModel @Inject constructor(
     private val getUserPreferenceUseCase: GetUserPreferenceUseCase,
-    private val updateUserPreferenceUseCase: UpdateUserPreferenceUseCase
+    private val updateUserPreferenceUseCase: UpdateUserPreferenceUseCase,
+    private val resetUserPreferenceUseCase: ResetUserPreferenceUseCase
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<UserPreferenceState>(UserPreferenceState.Loading)
@@ -33,6 +36,7 @@ class UserPreferenceViewModel @Inject constructor(
         when (event) {
             is UserPreferenceEvent.LoadUserPreference -> loadUserPreference()
             is UserPreferenceEvent.SaveUserPreference -> saveUserPreference(event.fieldsToUpdate)
+            is UserPreferenceEvent.ResetUserPreference -> resetUserPreference()
         }
     }
 
@@ -45,7 +49,11 @@ class UserPreferenceViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = UserPreferenceState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = UserPreferenceState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -64,7 +72,34 @@ class UserPreferenceViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = UserPreferenceState.BusinessError(e.message ?: "Failed to update preferences")
             } catch (e: APIError.NetworkError) {
-                _state.value = UserPreferenceState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.UnexpectedError(appError.message, appError)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = UserPreferenceState.UnexpectedError("Unexpected error")
+            }
+        }
+    }
+
+    private fun resetUserPreference() {
+        viewModelScope.launch {
+            _state.value = UserPreferenceState.Loading
+            try {
+                resetUserPreferenceUseCase()
+                _effect.emit(UserPreferenceEffect.ShowToast("Preferences reset to defaults"))
+                loadUserPreference()
+            } catch (e: APIError.BusinessError) {
+                _state.value = UserPreferenceState.BusinessError(e.message ?: "Failed to reset preferences")
+            } catch (e: APIError.NetworkError) {
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("preferences")
+                _state.value = UserPreferenceState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

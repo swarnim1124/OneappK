@@ -8,7 +8,9 @@ import io.mockk.mockk
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -118,5 +120,69 @@ class TokenManagerTest {
         manager.clearTokens()
 
         assertNull(manager.institutionId)
+    }
+
+    @Test
+    fun `email is null when nothing has been saved`() {
+        val manager = TokenManager(prefs)
+
+        assertNull(manager.email)
+    }
+
+    @Test
+    fun `saveEmail persists and is readable back`() {
+        val manager = TokenManager(prefs)
+
+        manager.saveEmail("vivaan.reddy@oneapp.dev")
+
+        assertEquals("vivaan.reddy@oneapp.dev", manager.email)
+    }
+
+    @Test
+    fun `clearTokens also clears email`() {
+        val manager = TokenManager(prefs)
+        manager.saveEmail("vivaan.reddy@oneapp.dev")
+
+        manager.clearTokens()
+
+        assertNull(manager.email)
+    }
+
+    @Test
+    fun `sessionExpired is false by default`() {
+        val manager = TokenManager(prefs)
+
+        assertFalse(manager.sessionExpired.value)
+    }
+
+    @Test
+    fun `expireSession clears tokens and flags sessionExpired`() {
+        store["access_token"] = "existing-access"
+        val manager = TokenManager(prefs)
+
+        manager.expireSession()
+
+        assertNull(manager.accessToken)
+        assertTrue(manager.sessionExpired.value)
+    }
+
+    @Test
+    fun `an explicit clearTokens never sets sessionExpired`() {
+        store["access_token"] = "existing-access"
+        val manager = TokenManager(prefs)
+
+        manager.clearTokens()
+
+        assertFalse(manager.sessionExpired.value)
+    }
+
+    @Test
+    fun `consumeSessionExpired resets the flag`() {
+        val manager = TokenManager(prefs)
+        manager.expireSession()
+
+        manager.consumeSessionExpired()
+
+        assertFalse(manager.sessionExpired.value)
     }
 }

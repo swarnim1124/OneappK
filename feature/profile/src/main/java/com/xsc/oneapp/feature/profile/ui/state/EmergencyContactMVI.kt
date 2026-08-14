@@ -1,5 +1,6 @@
 package com.xsc.oneapp.feature.profile.ui.state
 
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.domain.model.EmergencyContact
 
 sealed class EmergencyContactState {
@@ -7,13 +8,14 @@ sealed class EmergencyContactState {
     data class Success(val contacts: List<EmergencyContact>) : EmergencyContactState()
     object Empty : EmergencyContactState()
     data class BusinessError(val message: String) : EmergencyContactState()
-    data class NetworkError(val message: String) : EmergencyContactState()
-    data class UnexpectedError(val message: String) : EmergencyContactState()
+    data class NetworkError(val message: String, val appError: AppError? = null) : EmergencyContactState()
+    data class UnexpectedError(val message: String, val appError: AppError? = null) : EmergencyContactState()
 }
 
 sealed class EmergencyContactEvent {
     object LoadEmergencyContacts : EmergencyContactEvent()
     data class SaveEmergencyContact(val id: Int, val fieldsToUpdate: Map<String, Any>) : EmergencyContactEvent()
+    data class AddEmergencyContact(val fields: Map<String, Any>) : EmergencyContactEvent()
     data class DeleteEmergencyContact(val id: Int) : EmergencyContactEvent()
 }
 

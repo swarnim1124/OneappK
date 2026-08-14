@@ -2,6 +2,7 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
 import com.xsc.oneapp.feature.profile.domain.usecase.GetAcademicDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdateAcademicIdentifiersUseCase
 import com.xsc.oneapp.feature.profile.ui.state.AcademicDetailEffect
@@ -45,9 +46,11 @@ class AcademicDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = AcademicDetailState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = AcademicDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("academic detail")
+                _state.value = AcademicDetailState.NetworkError(appError.message, appError)
             } catch (e: APIError.HttpError) {
-                _state.value = AcademicDetailState.UnexpectedError("Server error")
+                val appError = e.toAppError("academic detail")
+                _state.value = AcademicDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -66,7 +69,11 @@ class AcademicDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = AcademicDetailState.BusinessError(e.message ?: "Failed to update identifiers")
             } catch (e: APIError.NetworkError) {
-                _state.value = AcademicDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("academic identifiers")
+                _state.value = AcademicDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("academic identifiers")
+                _state.value = AcademicDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

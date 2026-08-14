@@ -14,7 +14,9 @@ import org.junit.Test
 class AcademicDetailUseCasesTest {
 
     private val academicDetail = AcademicDetail(
-        identifiers = emptyList(), enrollmentNumber = "ENR-001", employeeCode = "", studentId = "77"
+        identifiers = emptyList(), enrollmentNumber = "ENR-001", branch = "CSE",
+        batch = "2022-2026", semester = 5, section = "A", cgpa = 8.32,
+        employeeCode = "", studentId = "77"
     )
 
     @Test

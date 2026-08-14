@@ -2,6 +2,8 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
+import com.xsc.oneapp.feature.profile.domain.usecase.AddEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.DeleteEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdateEmergencyContactUseCase
@@ -21,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class EmergencyContactViewModel @Inject constructor(
     private val getEmergencyContactUseCase: GetEmergencyContactUseCase,
+    private val addEmergencyContactUseCase: AddEmergencyContactUseCase,
     private val updateEmergencyContactUseCase: UpdateEmergencyContactUseCase,
     private val deleteEmergencyContactUseCase: DeleteEmergencyContactUseCase
 ) : ViewModel() {
@@ -35,7 +38,34 @@ class EmergencyContactViewModel @Inject constructor(
         when (event) {
             is EmergencyContactEvent.LoadEmergencyContacts -> loadEmergencyContacts()
             is EmergencyContactEvent.SaveEmergencyContact -> saveEmergencyContact(event.id, event.fieldsToUpdate)
+            is EmergencyContactEvent.AddEmergencyContact -> addEmergencyContact(event.fields)
             is EmergencyContactEvent.DeleteEmergencyContact -> deleteEmergencyContact(event.id)
+        }
+    }
+
+    /** Unlike Family, [addEmergencyContactUseCase] doesn't need userId added here -
+     * ProfileRepositoryImpl.addEmergencyContact already resolves and injects it when
+     * the payload doesn't supply one, same as every other emergency-contact call. */
+    private fun addEmergencyContact(fields: Map<String, Any>) {
+        viewModelScope.launch {
+            _state.value = EmergencyContactState.Loading
+            try {
+                addEmergencyContactUseCase(fields)
+                _effect.emit(EmergencyContactEffect.ShowToast("Emergency contact added"))
+                loadEmergencyContacts()
+            } catch (e: APIError.BusinessError) {
+                _state.value = EmergencyContactState.BusinessError(e.message ?: "Failed to add contact")
+            } catch (e: APIError.NetworkError) {
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.UnexpectedError(appError.message, appError)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = EmergencyContactState.UnexpectedError("Unexpected error")
+            }
         }
     }
 
@@ -52,7 +82,11 @@ class EmergencyContactViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = EmergencyContactState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = EmergencyContactState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -71,7 +105,11 @@ class EmergencyContactViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = EmergencyContactState.BusinessError(e.message ?: "Failed to update contact")
             } catch (e: APIError.NetworkError) {
-                _state.value = EmergencyContactState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -90,7 +128,11 @@ class EmergencyContactViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = EmergencyContactState.BusinessError(e.message ?: "Failed to delete contact")
             } catch (e: APIError.NetworkError) {
-                _state.value = EmergencyContactState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("emergency contact")
+                _state.value = EmergencyContactState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

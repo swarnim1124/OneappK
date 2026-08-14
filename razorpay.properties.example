@@ -1,0 +1,11 @@
+# Copy this file to `razorpay.properties` (repo root, already gitignored) and fill
+# in the real value, OR set the equivalent RAZORPAY_KEY_ID environment variable in
+# CI - either works, see app/build.gradle.kts.
+#
+# This is the Razorpay *key_id* (publishable/test key), not the key_secret - it's
+# meant to be embedded client-side by design (Razorpay's checkout SDK requires it to
+# initialize), but is still kept out of committed source the same way every other
+# per-developer/per-environment value in this project is, rather than as a literal
+# string in Kotlin.
+
+keyId=

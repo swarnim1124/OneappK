@@ -2,6 +2,8 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xsc.oneapp.core.result.toAppError
+import com.xsc.oneapp.feature.profile.domain.usecase.AddFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.DeleteFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetPersonalDetailUseCase
@@ -22,6 +24,7 @@ import javax.inject.Inject
 @HiltViewModel
 class FamilyDetailViewModel @Inject constructor(
     private val getFamilyDetailUseCase: GetFamilyDetailUseCase,
+    private val addFamilyDetailUseCase: AddFamilyDetailUseCase,
     private val updateFamilyDetailUseCase: UpdateFamilyDetailUseCase,
     private val deleteFamilyDetailUseCase: DeleteFamilyDetailUseCase,
     /** studentId (sch_student.tb_stud.id) is NOT the signed-in user's userId
@@ -41,7 +44,36 @@ class FamilyDetailViewModel @Inject constructor(
         when (event) {
             is FamilyDetailEvent.LoadFamilyDetail -> loadFamilyDetail()
             is FamilyDetailEvent.SaveFamilyDetail -> saveFamilyDetail(event.id, event.fieldsToUpdate)
+            is FamilyDetailEvent.AddFamilyDetail -> addFamilyDetail(event.fields)
             is FamilyDetailEvent.DeleteFamilyDetail -> deleteFamilyDetail(event.id, event.reason)
+        }
+    }
+
+    /** [addFamilyDetailUseCase]'s payload is unlike update/delete - there's no existing
+     * record to key off, so it needs studentId included directly rather than the
+     * backend inferring it from a record id (mirrors [loadFamilyDetail]'s resolution). */
+    private fun addFamilyDetail(fields: Map<String, Any>) {
+        viewModelScope.launch {
+            _state.value = FamilyDetailState.Loading
+            try {
+                val studentId = getPersonalDetailUseCase().studentId
+                    ?: throw APIError.BusinessError("NO_STUDENT_ID", "No student record found for this account")
+                addFamilyDetailUseCase(fields + ("studentId" to studentId))
+                _effect.emit(FamilyDetailEffect.ShowToast("Family member added"))
+                loadFamilyDetail()
+            } catch (e: APIError.BusinessError) {
+                _state.value = FamilyDetailState.BusinessError(e.message ?: "Failed to add family member")
+            } catch (e: APIError.NetworkError) {
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.UnexpectedError(appError.message, appError)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.value = FamilyDetailState.UnexpectedError("Unexpected error")
+            }
         }
     }
 
@@ -62,7 +94,11 @@ class FamilyDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = FamilyDetailState.BusinessError(e.message ?: "Business error occurred")
             } catch (e: APIError.NetworkError) {
-                _state.value = FamilyDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -81,7 +117,11 @@ class FamilyDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = FamilyDetailState.BusinessError(e.message ?: "Failed to update detail")
             } catch (e: APIError.NetworkError) {
-                _state.value = FamilyDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -100,7 +140,11 @@ class FamilyDetailViewModel @Inject constructor(
             } catch (e: APIError.BusinessError) {
                 _state.value = FamilyDetailState.BusinessError(e.message ?: "Failed to delete detail")
             } catch (e: APIError.NetworkError) {
-                _state.value = FamilyDetailState.NetworkError(e.message ?: "Network error")
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.NetworkError(appError.message, appError)
+            } catch (e: APIError.HttpError) {
+                val appError = e.toAppError("family detail")
+                _state.value = FamilyDetailState.UnexpectedError(appError.message, appError)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

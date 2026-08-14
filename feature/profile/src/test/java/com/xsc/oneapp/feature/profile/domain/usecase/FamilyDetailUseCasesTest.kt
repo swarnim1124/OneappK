@@ -14,9 +14,11 @@ import org.junit.Test
 class FamilyDetailUseCasesTest {
 
     private val familyDetail = FamilyDetail(
-        id = 1, firstName = "Parent", middleName = "", lastName = "One", genderId = null, dob = null,
-        mobileNo = "9999999999", email = "parent@oneapp.local", occupation = "Engineer", annualIncome = 0.0,
-        photoDocId = null, statusId = 1, relationshipTypeId = 1, isPrimaryGuardian = true, isEmergencyContact = true
+        id = 1, firstName = "Parent", middleName = "", lastName = "One", genderId = null,
+        genderName = "", dob = null, mobileNo = "9999999999", email = "parent@oneapp.local",
+        occupation = "Engineer", annualIncome = 0.0, photoDocId = null, statusId = 1,
+        statusName = "Active", relationshipTypeId = 1, relationshipTypeName = "Father",
+        isPrimaryGuardian = true, isEmergencyContact = true
     )
 
     @Test

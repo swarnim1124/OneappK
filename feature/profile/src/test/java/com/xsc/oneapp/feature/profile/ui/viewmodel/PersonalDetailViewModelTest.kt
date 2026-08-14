@@ -32,8 +32,9 @@ class PersonalDetailViewModelTest {
     private val personalDetail = PersonalDetail(
         userId = "3", studentId = "77", email = "student@oneapp.local", alternateEmail = "", mobile = "9999999999",
         firstName = "Student", middleName = "", lastName = "One", dob = "2000-01-01", genderId = 1,
-        photoDocId = null, nationalityId = null, primaryLangId = null, bloodGroupId = null,
-        createdAt = "2026-01-01", updatedAt = "2026-01-01"
+        gender = "Male", photoDocId = null, nationalityId = null, nationality = "", primaryLangId = null,
+        primaryLanguage = "", maritalStatusId = null, maritalStatus = "", bloodGroupId = null,
+        bloodGroup = "", createdAt = "2026-01-01", updatedAt = "2026-01-01", addresses = emptyList()
     )
 
     @Before

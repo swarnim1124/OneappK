@@ -19,8 +19,8 @@ import javax.inject.Inject
 
 /**
  * Owns only the forgot-password flow (email, OTP request). Kept separate from
- * LoginViewModel so this destination doesn't drag in LoginUseCase / RecaptchaManager
- * it never uses, and so its state can't be confused with the login screen's state -
+ * LoginViewModel so this destination doesn't drag in LoginUseCase it never uses,
+ * and so its state can't be confused with the login screen's state -
  * the two are independent NavBackStackEntry scopes anyway.
  */
 @HiltViewModel

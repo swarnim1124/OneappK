@@ -24,6 +24,12 @@ import kotlinx.coroutines.launch
  */
 class SectionLoader<T>(
     private val scope: CoroutineScope,
+    /** Human label for this section (e.g. "attendance shortage", "fee dues") -
+     * passed straight through to [uiStateCatching], so a traced HTTP failure reads
+     * "Could not load attendance shortage: [403] ..." instead of a generic
+     * "Could not load this request: ...". Defaults to that generic phrasing so
+     * existing call sites that predate labelling still read as a sentence. */
+    private val label: String = "this request",
     private val fetch: suspend () -> T
 ) {
     private val _state = MutableStateFlow<UiState<T>>(UiState.Loading)
@@ -47,7 +53,7 @@ class SectionLoader<T>(
         job?.cancel()
         job = scope.launch {
             _state.value = UiState.Loading
-            _state.value = uiStateCatching(fetch)
+            _state.value = uiStateCatching(label, fetch)
         }
     }
 }

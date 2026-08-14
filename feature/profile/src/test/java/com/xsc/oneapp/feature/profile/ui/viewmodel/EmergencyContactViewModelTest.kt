@@ -1,6 +1,7 @@
 package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import com.xsc.oneapp.feature.profile.domain.model.EmergencyContact
+import com.xsc.oneapp.feature.profile.domain.usecase.AddEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.DeleteEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetEmergencyContactUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.UpdateEmergencyContactUseCase
@@ -27,6 +28,7 @@ import org.junit.Test
 class EmergencyContactViewModelTest {
 
     private lateinit var getEmergencyContactUseCase: GetEmergencyContactUseCase
+    private lateinit var addEmergencyContactUseCase: AddEmergencyContactUseCase
     private lateinit var updateEmergencyContactUseCase: UpdateEmergencyContactUseCase
     private lateinit var deleteEmergencyContactUseCase: DeleteEmergencyContactUseCase
 
@@ -39,6 +41,7 @@ class EmergencyContactViewModelTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         getEmergencyContactUseCase = mockk()
+        addEmergencyContactUseCase = mockk()
         updateEmergencyContactUseCase = mockk()
         deleteEmergencyContactUseCase = mockk()
     }
@@ -50,6 +53,7 @@ class EmergencyContactViewModelTest {
 
     private fun viewModel() = EmergencyContactViewModel(
         getEmergencyContactUseCase,
+        addEmergencyContactUseCase,
         updateEmergencyContactUseCase,
         deleteEmergencyContactUseCase
     )
@@ -92,6 +96,17 @@ class EmergencyContactViewModelTest {
         val vm = viewModel()
 
         vm.onEvent(EmergencyContactEvent.SaveEmergencyContact(1, mapOf("mobile" to "8888888888")))
+
+        assertTrue(vm.state.value is EmergencyContactState.Success)
+    }
+
+    @Test
+    fun `adding passes the entered fields straight through - repository resolves userId, not the ViewModel`() = runTest {
+        coEvery { getEmergencyContactUseCase(null) } returns listOf(contact)
+        coEvery { addEmergencyContactUseCase(mapOf("name" to "New Contact")) } just Runs
+        val vm = viewModel()
+
+        vm.onEvent(EmergencyContactEvent.AddEmergencyContact(mapOf("name" to "New Contact")))
 
         assertTrue(vm.state.value is EmergencyContactState.Success)
     }

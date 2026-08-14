@@ -70,7 +70,12 @@ class TokenAuthenticator @Inject constructor(
             // TokenManager.accessTokenFlow going null and flips isAuthenticated to
             // false; RootNavHost observes that to route back to Login even for a
             // logout that happens mid-session (see RootNavHost.kt).
-            runBlocking { tokenManager.clearTokens() }
+            //
+            // expireSession() (not clearTokens()) specifically: this is the one
+            // place a session ends without the user asking for it, so Login shows
+            // "Session expired. Please sign in again." instead of a bare form - see
+            // TokenManager.sessionExpired / LoginViewModel.
+            runBlocking { tokenManager.expireSession() }
             return null
         }
 

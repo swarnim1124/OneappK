@@ -11,7 +11,6 @@ import com.google.gson.annotations.SerializedName
 data class LoginResultDTO(
     @SerializedName("token") val token: String?,
     @SerializedName("refreshToken") val refreshToken: String?,
-    @SerializedName("captchaRequired") val captchaRequired: Boolean?,
     @SerializedName("user") val user: LoginUserDTO?
 )
 

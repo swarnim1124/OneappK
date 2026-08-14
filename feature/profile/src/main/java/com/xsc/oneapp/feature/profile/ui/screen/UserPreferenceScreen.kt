@@ -1,9 +1,11 @@
 package com.xsc.oneapp.feature.profile.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -20,17 +22,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xsc.oneapp.feature.profile.ui.components.EmptyState
-import com.xsc.oneapp.feature.profile.ui.components.ErrorState
-import com.xsc.oneapp.feature.profile.ui.components.LoadingState
-import com.xsc.oneapp.feature.profile.ui.components.ProfileContentColumn
 import com.xsc.oneapp.feature.profile.ui.components.ProfileFormCard
 import com.xsc.oneapp.feature.profile.ui.components.ProfileHeaderRow
-import com.xsc.oneapp.feature.profile.ui.components.ProfileScaffold
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.ui.state.UserPreferenceEvent
 import com.xsc.oneapp.feature.profile.ui.state.UserPreferenceState
 import com.xsc.oneapp.feature.profile.ui.viewmodel.UserPreferenceViewModel
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import com.xsc.sdk.commonui.button.PrimaryButton
+import com.xsc.sdk.commonui.record.EmptyState
+import com.xsc.sdk.commonui.record.ErrorState
+import com.xsc.sdk.commonui.record.LoadingState
+import com.xsc.sdk.commonui.record.RecordScaffold
+import com.xsc.sdk.commonui.record.ResponsiveContent
 import com.xsc.sdk.commonui.textfield.PremiumTextField
 import com.xsc.sdk.theme.LocalSpacing
 
@@ -57,7 +63,7 @@ fun UserPreferenceScreen(
         viewModel.onEvent(UserPreferenceEvent.LoadUserPreference)
     }
 
-    ProfileScaffold(title = "Settings", onNavigateBack = onNavigateBack) { padding ->
+    RecordScaffold(title = "Settings", onBack = onNavigateBack) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -82,7 +88,7 @@ fun UserPreferenceScreen(
                                 vertical = spacing.xl
                             )
                     ) {
-                        ProfileContentColumn {
+                        ResponsiveContent(verticalArrangement = Arrangement.spacedBy(spacing.lg)) {
                             ProfileHeaderRow(
                                 icon = Icons.Default.Settings,
                                 title = "App and account settings",
@@ -131,23 +137,34 @@ fun UserPreferenceScreen(
                                     )
                                 }
                             )
+
+                            OutlinedButton(
+                                onClick = { viewModel.onEvent(UserPreferenceEvent.ResetUserPreference) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Reset to defaults")
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(spacing.xxl))
                     }
                 }
 
-                is UserPreferenceState.BusinessError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(UserPreferenceEvent.LoadUserPreference)
-                }
+                is UserPreferenceState.BusinessError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(UserPreferenceEvent.LoadUserPreference) }
+                )
 
-                is UserPreferenceState.NetworkError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(UserPreferenceEvent.LoadUserPreference)
-                }
+                is UserPreferenceState.NetworkError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(UserPreferenceEvent.LoadUserPreference) }
+                )
 
-                is UserPreferenceState.UnexpectedError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(UserPreferenceEvent.LoadUserPreference)
-                }
+                is UserPreferenceState.UnexpectedError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(UserPreferenceEvent.LoadUserPreference) },
+                    context = (currentState.appError as? AppError.Traced)?.context
+                )
 
                 is UserPreferenceState.Empty -> EmptyState(
                     message = "No preferences saved yet.",

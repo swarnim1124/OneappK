@@ -103,7 +103,21 @@ class SessionManager @Inject constructor(
         }
     }
 
-    fun getDisplayName(): String = displayName ?: "there"
+    /**
+     * Falls back to [TokenManager.email] (captured from the login response body,
+     * not the JWT - see its own doc comment) when the token itself carries neither
+     * a "name"/"given_name" claim nor an "email" claim to derive one from. A plain
+     * live read rather than folding into [refreshFromToken]'s cached [displayName]:
+     * LoginViewModel calls [TokenManager.saveEmail] *after* [TokenManager.saveTokens]
+     * triggers the async [TokenManager.accessTokenFlow] collector that runs
+     * [refreshFromToken], so caching this at that point could race and capture a
+     * still-null value.
+     */
+    fun getDisplayName(): String = displayName ?: tokenManager.email?.substringBefore("@") ?: "there"
+
+    /** Same login-response fallback as [getDisplayName] - see its doc comment for
+     * why this is a live read rather than folding into [currentEmail]. */
+    fun getEmail(): String? = currentEmail.value ?: tokenManager.email
 
     /**
      * Defense-in-depth only. [currentPermissions] was captured from the JWT and unit
@@ -117,12 +131,44 @@ class SessionManager @Inject constructor(
      * a `false` should hide or disable a UI affordance, not be trusted as proof the
      * backend would also refuse it. Do not use this to decide what to *send* to a
      * write endpoint, only what to *show*.
+     *
+     * Mirrors xsc_security/authorization.py's matching order exactly (confirmed by
+     * the backend team's RBAC audit), so a permission that would be granted server-side
+     * is never hidden client-side:
+     *   1. Exact string match against [currentPermissions].
+     *   2. The literal global wildcard [WILDCARD_ALL] - an unconditional bypass,
+     *      granted regardless of [permission]'s own shape. This has to stay a
+     *      separate first-class check rather than falling out of step 3's segment
+     *      loop, because step 3 only runs when [permission] itself has exactly
+     *      [PERMISSION_SEGMENT_COUNT] segments - a super-admin grant must still work
+     *      against a malformed or legacy-shaped required permission string.
+     *   3. Per-segment wildcard match, only evaluated when both [permission] and the
+     *      candidate granted string split into exactly [PERMISSION_SEGMENT_COUNT]
+     *      segments - e.g. "m_attendance.*.*.*" or
+     *      "m_attendance.sm_records.attendanceRecord.*". A segment-count mismatch on
+     *      either side fails closed (no match), it never falls back to a shorter or
+     *      partial comparison.
      */
-    fun hasPermission(permission: String): Boolean = permission in currentPermissions.value
+    fun hasPermission(permission: String): Boolean {
+        val granted = currentPermissions.value
+        if (permission in granted) return true
+        if (WILDCARD_ALL in granted) return true
+
+        val requiredSegments = permission.split(".")
+        if (requiredSegments.size != PERMISSION_SEGMENT_COUNT) return false
+
+        return granted.any { candidate ->
+            val candidateSegments = candidate.split(".")
+            candidateSegments.size == PERMISSION_SEGMENT_COUNT &&
+                candidateSegments.indices.all { i ->
+                    candidateSegments[i] == WILDCARD_SEGMENT || candidateSegments[i] == requiredSegments[i]
+                }
+        }
+    }
 
     /** True if the current user holds any one of [permissions]. See [hasPermission]. */
     fun hasAnyPermission(vararg permissions: String): Boolean =
-        permissions.any { it in currentPermissions.value }
+        permissions.any(::hasPermission)
 
     suspend fun clearSession() {
         tokenManager.clearTokens()
@@ -143,5 +189,14 @@ class SessionManager @Inject constructor(
          * do not commit a non-null value.
          */
         private val DEV_FORCE_USER_ID: String? = null
+
+        /** Unconditional super-admin bypass - see [hasPermission] step 2. */
+        private const val WILDCARD_ALL = "*.*.*.*"
+
+        /** A single dispatch envelope field standing in for any value - see [hasPermission] step 3. */
+        private const val WILDCARD_SEGMENT = "*"
+
+        /** mod.subMod.action.actionType - see [hasPermission] step 3 and [requiredPermissionFor]. */
+        private const val PERMISSION_SEGMENT_COUNT = 4
     }
 }

@@ -37,9 +37,9 @@ class CurriculumViewModel @Inject constructor(
     getSyllabusUseCase: GetSyllabusUseCase
 ) : ViewModel() {
 
-    private val programmes = SectionLoader(viewModelScope) { getProgrammesUseCase() }
-    private val courses = SectionLoader(viewModelScope) { getCoursesUseCase() }
-    private val syllabus = SectionLoader(viewModelScope) { getSyllabusUseCase() }
+    private val programmes = SectionLoader(viewModelScope, "programmes") { getProgrammesUseCase() }
+    private val courses = SectionLoader(viewModelScope, "courses") { getCoursesUseCase() }
+    private val syllabus = SectionLoader(viewModelScope, "syllabus") { getSyllabusUseCase() }
 
     val programmesState: StateFlow<UiState<List<Programme>>> = programmes.state
     val coursesState: StateFlow<UiState<List<Course>>> = courses.state

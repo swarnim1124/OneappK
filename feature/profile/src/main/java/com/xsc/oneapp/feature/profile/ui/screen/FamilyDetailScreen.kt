@@ -14,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,10 +39,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.profile.domain.model.FamilyDetail
-import com.xsc.oneapp.feature.profile.ui.components.EmptyState
-import com.xsc.oneapp.feature.profile.ui.components.ErrorState
-import com.xsc.oneapp.feature.profile.ui.components.LoadingState
 import com.xsc.oneapp.feature.profile.ui.components.ProfilePersonCard
+import com.xsc.sdk.commonui.record.EmptyState
+import com.xsc.sdk.commonui.record.ErrorState
+import com.xsc.sdk.commonui.record.LoadingState
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.ui.state.FamilyDetailEffect
 import com.xsc.oneapp.feature.profile.ui.state.FamilyDetailEvent
 import com.xsc.oneapp.feature.profile.ui.state.FamilyDetailState
@@ -67,6 +70,7 @@ fun FamilyDetailScreen(
     val spacing = LocalSpacing.current
     var editingDetail by remember { mutableStateOf<FamilyDetail?>(null) }
     var deletingDetail by remember { mutableStateOf<FamilyDetail?>(null) }
+    var addingNew by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail)
@@ -101,7 +105,14 @@ fun FamilyDetailScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                text = { Text("Add family member") },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = { addingNew = true }
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -123,6 +134,7 @@ fun FamilyDetailScreen(
                         ProfilePersonCard(
                             name = "${detail.firstName} ${detail.lastName}".trim(),
                             subtitle = detail.occupation,
+                            badge = detail.relationshipTypeName.takeIf { it.isNotBlank() },
                             contactLines = listOf(
                                 Icons.Default.Phone to detail.mobileNo,
                                 Icons.Default.Email to detail.email
@@ -133,22 +145,26 @@ fun FamilyDetailScreen(
                     }
                 }
 
-                is FamilyDetailState.BusinessError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail)
-                }
+                is FamilyDetailState.BusinessError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail) }
+                )
 
-                is FamilyDetailState.NetworkError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail)
-                }
+                is FamilyDetailState.NetworkError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail) }
+                )
 
-                is FamilyDetailState.UnexpectedError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail)
-                }
+                is FamilyDetailState.UnexpectedError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail) },
+                    context = (currentState.appError as? AppError.Traced)?.context
+                )
 
                 is FamilyDetailState.Empty -> EmptyState(
                     message = "No family records on file yet.",
-                    actionLabel = "Reload",
-                    onAction = { viewModel.onEvent(FamilyDetailEvent.LoadFamilyDetail) }
+                    actionLabel = "Add family member",
+                    onAction = { addingNew = true }
                 )
             }
         }
@@ -164,6 +180,16 @@ fun FamilyDetailScreen(
             )
         }
 
+        if (addingNew) {
+            FamilyAddDialog(
+                onDismiss = { addingNew = false },
+                onSave = { fields ->
+                    viewModel.onEvent(FamilyDetailEvent.AddFamilyDetail(fields))
+                    addingNew = false
+                }
+            )
+        }
+
         deletingDetail?.let { detail ->
             FamilyDeleteDialog(
                 detail = detail,
@@ -175,6 +201,94 @@ fun FamilyDetailScreen(
             )
         }
     }
+}
+
+/**
+ * [AddFamilyDetailUseCase] has no confirmed field-name contract the way update does
+ * (no PROFILE_API_CONTRACT.md comment covers `add` specifically) - this mirrors
+ * update's confirmed name/mobile/email/occupation fields as the most defensible
+ * inference (same entity, same table), not a verified contract. studentId is added
+ * separately by the ViewModel, which already resolves it for every other call here.
+ */
+@Composable
+private fun FamilyAddDialog(
+    onDismiss: () -> Unit,
+    onSave: (Map<String, Any>) -> Unit
+) {
+    val spacing = LocalSpacing.current
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var relation by remember { mutableStateOf("") }
+    var mobileNo by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var occupation by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
+        title = { Text("Add family member", style = MaterialTheme.typography.headlineSmall) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+                PremiumTextField(
+                    text = firstName,
+                    onTextChange = { firstName = it },
+                    placeholder = "First name",
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = lastName,
+                    onTextChange = { lastName = it },
+                    placeholder = "Last name",
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = relation,
+                    onTextChange = { relation = it },
+                    placeholder = "Relation (e.g. 1=Mother, 2=Father)",
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = mobileNo,
+                    onTextChange = { mobileNo = it },
+                    placeholder = "Mobile",
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = email,
+                    onTextChange = { email = it },
+                    placeholder = "Email",
+                    keyboardType = KeyboardType.Email,
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = occupation,
+                    onTextChange = { occupation = it },
+                    placeholder = "Occupation",
+                    imeAction = ImeAction.Done
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val payload = mutableMapOf<String, Any>(
+                        "name" to "$firstName $lastName".trim(),
+                        "mobile" to mobileNo
+                    )
+                    relation.toIntOrNull()?.let { payload["relation"] = it }
+                    if (email.isNotBlank()) payload["email"] = email
+                    if (occupation.isNotBlank()) payload["occupation"] = occupation
+                    onSave(payload)
+                },
+                enabled = firstName.isNotBlank() && mobileNo.isNotBlank() && relation.isNotBlank()
+            ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

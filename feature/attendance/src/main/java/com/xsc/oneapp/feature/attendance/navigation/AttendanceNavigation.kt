@@ -1,6 +1,7 @@
 package com.xsc.oneapp.feature.attendance.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavBackStackEntry
@@ -8,6 +9,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.navigation
+import com.xsc.oneapp.core.result.UiState
+import com.xsc.oneapp.core.result.deniesRoute
 import com.xsc.oneapp.feature.attendance.ui.screen.AttendanceOverviewScreen
 import com.xsc.oneapp.feature.attendance.ui.screen.AttendancePolicyScreen
 import com.xsc.oneapp.feature.attendance.ui.screen.AttendanceRecordsScreen
@@ -31,39 +34,61 @@ object AttendanceDestinations {
  * `composable(Routes.ATTENDANCE)`, so adding any destination inside this feature meant
  * editing the app module. Now the internal routes are `internal` to this module and
  * only [AttendanceDestinations.GRAPH_ROUTE] is public API.
+ *
+ * [accessibleRoutes] and [fallbackRoute] gate only [AttendanceDestinations.OVERVIEW] -
+ * the graph's own start destination and only entry point from outside this module.
+ * Records/Requests/Policy stay ungated: they're only reachable via the onOpen* calls
+ * below, from a user already inside Overview, same as HALL_TICKET's precedent in
+ * RootNavHost. `:app` has no visibility into this graph's own composable() entries,
+ * so it can't wrap them itself - the check has to live here instead.
  */
-fun NavGraphBuilder.attendanceGraph(navController: NavHostController) {
+fun NavGraphBuilder.attendanceGraph(
+    navController: NavHostController,
+    accessibleRoutes: UiState<Set<String>>,
+    fallbackRoute: String
+) {
     navigation(
         startDestination = AttendanceDestinations.OVERVIEW,
         route = AttendanceDestinations.GRAPH_ROUTE
     ) {
         composable(AttendanceDestinations.OVERVIEW) { entry ->
-            AttendanceOverviewScreen(
-                onBack = { navController.popBackStack() },
-                onOpenRecords = { navController.navigate(AttendanceDestinations.RECORDS) },
-                onOpenRequests = { navController.navigate(AttendanceDestinations.REQUESTS) },
-                onOpenPolicy = { navController.navigate(AttendanceDestinations.POLICY) },
-                viewModel = entry.sharedAttendanceViewModel(navController)
-            )
+            if (accessibleRoutes.deniesRoute(AttendanceDestinations.GRAPH_ROUTE)) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(fallbackRoute) {
+                        popUpTo(fallbackRoute) { inclusive = true }
+                    }
+                }
+            } else {
+                AttendanceOverviewScreen(
+                    onBack = { navController.popBackStack(fallbackRoute, false) },
+                    onOpenRecords = { navController.navigate(AttendanceDestinations.RECORDS) },
+                    onOpenRequests = { navController.navigate(AttendanceDestinations.REQUESTS) },
+                    onOpenPolicy = { navController.navigate(AttendanceDestinations.POLICY) },
+                    viewModel = entry.sharedAttendanceViewModel(navController)
+                )
+            }
         }
 
+        // onBack pops straight to fallbackRoute (Dashboard), not navController.popBackStack() -
+        // these destinations sit one hop below Overview inside this nested graph, so a plain
+        // pop would only return to Overview instead of Dashboard.
         composable(AttendanceDestinations.RECORDS) { entry ->
             AttendanceRecordsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(fallbackRoute, false) },
                 viewModel = entry.sharedAttendanceViewModel(navController)
             )
         }
 
         composable(AttendanceDestinations.REQUESTS) { entry ->
             AttendanceRequestsScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(fallbackRoute, false) },
                 viewModel = entry.sharedAttendanceViewModel(navController)
             )
         }
 
         composable(AttendanceDestinations.POLICY) { entry ->
             AttendancePolicyScreen(
-                onBack = { navController.popBackStack() },
+                onBack = { navController.popBackStack(fallbackRoute, false) },
                 viewModel = entry.sharedAttendanceViewModel(navController)
             )
         }

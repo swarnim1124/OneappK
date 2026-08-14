@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -43,10 +45,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.profile.domain.model.EmergencyContact
-import com.xsc.oneapp.feature.profile.ui.components.EmptyState
-import com.xsc.oneapp.feature.profile.ui.components.ErrorState
-import com.xsc.oneapp.feature.profile.ui.components.LoadingState
 import com.xsc.oneapp.feature.profile.ui.components.ProfilePersonCard
+import com.xsc.sdk.commonui.record.EmptyState
+import com.xsc.sdk.commonui.record.ErrorState
+import com.xsc.sdk.commonui.record.LoadingState
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.ui.state.EmergencyContactEffect
 import com.xsc.oneapp.feature.profile.ui.state.EmergencyContactEvent
 import com.xsc.oneapp.feature.profile.ui.state.EmergencyContactState
@@ -72,6 +75,7 @@ fun EmergencyContactScreen(
     val spacing = LocalSpacing.current
     var editingContact by remember { mutableStateOf<EmergencyContact?>(null) }
     var deletingContact by remember { mutableStateOf<EmergencyContact?>(null) }
+    var addingNew by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts)
@@ -106,7 +110,14 @@ fun EmergencyContactScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                text = { Text("Add contact") },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = { addingNew = true }
+            )
+        }
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -138,24 +149,38 @@ fun EmergencyContactScreen(
                     }
                 }
 
-                is EmergencyContactState.BusinessError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts)
-                }
+                is EmergencyContactState.BusinessError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts) }
+                )
 
-                is EmergencyContactState.NetworkError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts)
-                }
+                is EmergencyContactState.NetworkError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts) }
+                )
 
-                is EmergencyContactState.UnexpectedError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts)
-                }
+                is EmergencyContactState.UnexpectedError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts) },
+                    context = (currentState.appError as? AppError.Traced)?.context
+                )
 
                 is EmergencyContactState.Empty -> EmptyState(
                     message = "No emergency contacts on record yet.",
-                    actionLabel = "Reload",
-                    onAction = { viewModel.onEvent(EmergencyContactEvent.LoadEmergencyContacts) }
+                    actionLabel = "Add contact",
+                    onAction = { addingNew = true }
                 )
             }
+        }
+
+        if (addingNew) {
+            EmergencyContactAddDialog(
+                onDismiss = { addingNew = false },
+                onSave = { fields ->
+                    viewModel.onEvent(EmergencyContactEvent.AddEmergencyContact(fields))
+                    addingNew = false
+                }
+            )
         }
 
         editingContact?.let { contact ->
@@ -200,6 +225,96 @@ fun EmergencyContactScreen(
             )
         }
     }
+}
+
+/**
+ * [AddEmergencyContactUseCase] has no confirmed field-name contract the way update
+ * does - this mirrors update's confirmed name/mobile/priorityOrder fields as the most
+ * defensible inference (same entity), not a verified contract. No email field, for the
+ * same reason the edit dialog omits one - the contract for this entity never persists
+ * it through either action.
+ */
+@Composable
+private fun EmergencyContactAddDialog(
+    onDismiss: () -> Unit,
+    onSave: (Map<String, Any>) -> Unit
+) {
+    val spacing = LocalSpacing.current
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var relation by remember { mutableStateOf("") }
+    var mobile by remember { mutableStateOf("") }
+    var isPrimary by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = MaterialTheme.shapes.large,
+        title = { Text("Add emergency contact", style = MaterialTheme.typography.headlineSmall) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+                PremiumTextField(
+                    text = firstName,
+                    onTextChange = { firstName = it },
+                    placeholder = "First name",
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = lastName,
+                    onTextChange = { lastName = it },
+                    placeholder = "Last name",
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = relation,
+                    onTextChange = { relation = it },
+                    placeholder = "Relation (e.g. 1=Mother, 2=Father)",
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next
+                )
+                PremiumTextField(
+                    text = mobile,
+                    onTextChange = { mobile = it },
+                    placeholder = "Mobile",
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Done
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Primary contact", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Called first in an emergency",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(checked = isPrimary, onCheckedChange = { isPrimary = it })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val payload = mutableMapOf<String, Any>(
+                        "name" to "$firstName $lastName".trim(),
+                        "mobile" to mobile,
+                        "priorityOrder" to if (isPrimary) 1 else 2
+                    )
+                    relation.toIntOrNull()?.let { payload["relation"] = it }
+                    onSave(payload)
+                },
+                enabled = firstName.isNotBlank() && mobile.isNotBlank() && relation.isNotBlank()
+            ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

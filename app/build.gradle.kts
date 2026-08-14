@@ -5,22 +5,25 @@ plugins {
     id("oneapp.android.hilt")
     alias(libs.plugins.kotlin.compose)
 
-    // NOT ENABLED YET - enabling either of these right now guarantees a build failure.
-    //
-    // app/google-services.json registers the package `swarnim.oneapp.com`, but this
-    // module's applicationId is `com.xsc.oneapp` (below). The Google Services plugin
-    // matches the two and fails the build with:
+    // Google Services / Crashlytics / Performance Monitoring all require
+    // app/google-services.json to exist and register package `com.xsc.oneapp` -
+    // that file is gitignored and not present until you download it from the
+    // Firebase console (Project settings -> Add app -> Android -> register
+    // `com.xsc.oneapp`) and drop it in this folder. Without it, the Google Services
+    // plugin fails the build immediately with:
     //     No matching client found for package name 'com.xsc.oneapp'
-    // The Crashlytics plugin depends on google-services having run first, so it's
-    // blocked by the same fix.
+    // Crashlytics and Performance Monitoring both depend on Google Services having
+    // run first, so they're gated on the same file. All three plugins are safe to
+    // leave applied while that file is missing during local iteration - they'll only
+    // start failing the specific build variant you're assembling, not evaluation -
+    // but a clean CI/teammate checkout needs the real file present to build at all.
     //
-    // Fix: Firebase console -> Project settings -> Add app -> Android, register the
-    // package `com.xsc.oneapp`, download the new google-services.json and replace the
-    // one in this folder. Then uncomment both lines below. CrashReporter.kt (see
-    // :core) already calls Crashlytics defensively today and will start reporting
-    // with no further code changes once these are on.
-    // alias(libs.plugins.google.services)
-    // alias(libs.plugins.firebase.crashlytics.plugin)
+    // CrashReporter.kt (see :core) and RemoteConfigProvider.kt already call their
+    // respective SDKs defensively and will start reporting/fetching with no further
+    // code changes once this file lands.
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics.plugin)
+    alias(libs.plugins.firebase.perf.plugin)
 }
 
 // Release signing material, read from a gitignored `keystore.properties` at the repo
@@ -106,12 +109,13 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
     // Needed directly (not just transitively through the feature modules) for
-    // CrashReporter.init() in OneAppApplication.
+    // CrashReporter.init() / RemoteConfigProvider.init() in OneAppApplication.
     implementation(project(":core"))
     implementation(project(":feature:login"))
     implementation(project(":feature:dashboard"))
@@ -123,6 +127,23 @@ dependencies {
     implementation(project(":feature:fee"))
     implementation(project(":sdk:XscAuthSDK"))
     implementation(project(":sdk:XscThemeSDK"))
+    // For PushNotifications.createChannel() in OneAppApplication - :app doesn't touch
+    // FCM directly otherwise, the messaging service itself lives in the SDK module.
+    implementation(project(":sdk:XscNotificationSDK"))
+    // The Performance Monitoring Gradle plugin only supports application modules
+    // (confirmed: applying it to :sdk:XscNetworkSDK fails configuration outright with
+    // "FirebasePerformancePlugin must only be used with Android application
+    // projects"). That's not a gap, though - AGP's bytecode instrumentation API
+    // transforms the whole merged class graph at the single application module,
+    // library dependencies included, so applying the plugin once here is sufficient
+    // to trace OkHttp calls made inside :sdk:XscNetworkSDK too.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.perf)
+    // MainActivity implements Razorpay's PaymentResultWithDataListener - the SDK
+    // requires the *hosting Activity* to implement it directly, there's no
+    // listener-object API, so :app needs this even though the actual checkout
+    // trigger (Checkout().open(activity, options)) lives in :feature:fee.
+    implementation(libs.razorpay.checkout)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -136,6 +157,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

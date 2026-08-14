@@ -3,8 +3,10 @@ package com.xsc.oneapp.feature.fee.data.repository
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.xsc.oneapp.feature.fee.data.network.FeeEndpoint
+import com.xsc.oneapp.feature.fee.domain.model.FeeStructureComponent
 import com.xsc.sdk.auth.SessionManager
 import com.xsc.sdk.network.APIClient
+import com.xsc.sdk.network.APIError
 import com.xsc.sdk.network.api.DispatchRequest
 import com.xsc.sdk.network.api.DispatchResponse
 import com.xsc.sdk.network.internal.DispatcherApi
@@ -15,6 +17,7 @@ import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import retrofit2.Response
 
@@ -186,5 +189,237 @@ class FeeRepositoryImplTest {
         assertFalse(requestSlot.captured.payload.containsKey("studentId"))
         assertEquals(FeeEndpoint.SubModules.PENALTY, requestSlot.captured.subMod)
         assertEquals(FeeEndpoint.Actions.FEE_PENALTY, requestSlot.captured.action)
+    }
+
+    @Test
+    fun `createFeeStructure sends the full payload and returns the new id`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("""{"fee_structure_id":1}""")))
+        val sessionManager = mockk<SessionManager>()
+        every { sessionManager.getUserId() } returns "12045"
+        every { sessionManager.getInstitutionId() } returns 1
+
+        val component = FeeStructureComponent("TUIT", "Tuition Fee", 50000.0, false)
+        val result = repository(dispatcherApi, sessionManager).createFeeStructure(
+            code = "FS-2026-ENG",
+            name = "B.Tech Tuition Fee 2026",
+            academicYearId = "1",
+            programmeId = "101",
+            components = listOf(component),
+            effectiveFrom = "2026-06-01",
+            effectiveTo = "2027-05-31"
+        )
+
+        assertEquals("1", result)
+        assertEquals("FS-2026-ENG", requestSlot.captured.payload["feeStructureCode"])
+        assertEquals("B.Tech Tuition Fee 2026", requestSlot.captured.payload["feeStructureName"])
+        assertEquals(1L, requestSlot.captured.payload["academicYearId"])
+        assertEquals(101L, requestSlot.captured.payload["programmeId"])
+        assertEquals("2026-06-01", requestSlot.captured.payload["effectiveFrom"])
+        assertEquals("2027-05-31", requestSlot.captured.payload["effectiveTo"])
+        assertEquals(1, requestSlot.captured.payload["inst_id"])
+        @Suppress("UNCHECKED_CAST")
+        val components = requestSlot.captured.payload["components"] as List<Map<String, Any>>
+        assertEquals("TUIT", components.first()["headCode"])
+        assertEquals(50000.0, components.first()["amount"])
+        assertEquals(FeeEndpoint.SubModules.FEE_STRUCTURE, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `createFeeStructure omits a blank effectiveTo`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).createFeeStructure(
+            "FS-2026-ENG", "B.Tech Tuition", "1", "101",
+            listOf(FeeStructureComponent("TUIT", "Tuition Fee", 50000.0, false)), "2026-06-01", null
+        )
+
+        assertFalse(requestSlot.captured.payload.containsKey("effectiveTo"))
+    }
+
+    @Test
+    fun `updateFeeStructureStatus sends feeStructureId and status`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).updateFeeStructureStatus("1", "ACTIVE")
+
+        assertEquals(1L, requestSlot.captured.payload["feeStructureId"])
+        assertEquals("ACTIVE", requestSlot.captured.payload["status"])
+        assertEquals(FeeEndpoint.ActionTypes.UPDATE, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `deleteFeeStructure sends feeStructureId`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).deleteFeeStructure("1")
+
+        assertEquals(1L, requestSlot.captured.payload["feeStructureId"])
+        assertEquals(FeeEndpoint.ActionTypes.DELETE, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `assignFee sends a single studentId when only one target is given`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).assignFee("1", "10", "2026-07-15", listOf("10"))
+
+        assertEquals(10L, requestSlot.captured.payload["studentId"])
+        assertFalse(requestSlot.captured.payload.containsKey("studentIds"))
+        assertEquals(FeeEndpoint.SubModules.FEE_ASSIGNMENT, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `assignFee sends studentIds when multiple targets are given`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).assignFee("1", "10", "2026-07-15", listOf("10", "11"))
+
+        assertEquals(listOf(10L, 11L), requestSlot.captured.payload["studentIds"])
+        assertFalse(requestSlot.captured.payload.containsKey("studentId"))
+    }
+
+    @Test
+    fun `deleteFeeAssignment sends assignmentId`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).deleteFeeAssignment("5001")
+
+        assertEquals(5001L, requestSlot.captured.payload["assignmentId"])
+        assertEquals(FeeEndpoint.SubModules.FEE_ASSIGNMENT, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.ActionTypes.DELETE, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `grantConcession sends the full payload`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).grantConcession("10", "1", "MERIT_SCHOLARSHIP", 5000.0, "Top 1% Academic Performer")
+
+        assertEquals(10L, requestSlot.captured.payload["studentId"])
+        assertEquals(1L, requestSlot.captured.payload["assignmentId"])
+        assertEquals("MERIT_SCHOLARSHIP", requestSlot.captured.payload["concessionType"])
+        assertEquals(5000.0, requestSlot.captured.payload["amountOrPercent"])
+        assertEquals(FeeEndpoint.SubModules.CONCESSION, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.Actions.FEE_CONCESSION, requestSlot.captured.action)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `initiateOnlinePayment sends method ONLINE and parses the order response`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns Response.success(
+            DispatchResponse(
+                status = "success",
+                data = JsonParser.parseString("""{"id":"order_MOCK12345678","entity":"order","amount":1000000,"currency":"INR"}""")
+            )
+        )
+
+        val order = repository(dispatcherApi).initiateOnlinePayment("1", 10000.0, "Student Self")
+
+        assertEquals("order_MOCK12345678", order.id)
+        assertEquals(1000000L, order.amount)
+        assertEquals("INR", order.currency)
+        assertEquals(1L, requestSlot.captured.payload["invoiceId"])
+        assertEquals(10000.0, requestSlot.captured.payload["amount"])
+        assertEquals("ONLINE", requestSlot.captured.payload["method"])
+        assertEquals("Student Self", requestSlot.captured.payload["paidBy"])
+        assertEquals(FeeEndpoint.SubModules.PAYMENT, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.Actions.FEE_PAYMENT, requestSlot.captured.action)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `initiateOnlinePayment throws a business error when the gateway returns no order`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        coEvery { dispatcherApi.dispatch(any()) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("null")))
+
+        assertThrows(APIError.BusinessError::class.java) {
+            kotlinx.coroutines.runBlocking { repository(dispatcherApi).initiateOnlinePayment("1", 10000.0, "Student Self") }
+        }
+    }
+
+    @Test
+    fun `requestRefund resolves studentId from the session, not a caller-supplied value`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).requestRefund("1", 2000.0, "Overpayment during admission")
+
+        assertEquals(12045L, requestSlot.captured.payload["studentId"])
+        assertEquals(1L, requestSlot.captured.payload["invoiceId"])
+        assertEquals(2000.0, requestSlot.captured.payload["amount"])
+        assertEquals(FeeEndpoint.SubModules.REFUND, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `requestRefund throws instead of silently defaulting when there's no signed-in student`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val sessionManager = mockk<SessionManager>()
+        every { sessionManager.getUserId() } returns null
+
+        assertThrows(APIError.BusinessError::class.java) {
+            kotlinx.coroutines.runBlocking {
+                repository(dispatcherApi, sessionManager).requestRefund("1", 2000.0, "Overpayment")
+            }
+        }
+    }
+
+    @Test
+    fun `updateRefundStatus sends refundId, status and remarks when present`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).updateRefundStatus("1", "APPROVED", "Verified against payment gateway log")
+
+        assertEquals(1L, requestSlot.captured.payload["refundId"])
+        assertEquals("APPROVED", requestSlot.captured.payload["status"])
+        assertEquals("Verified against payment gateway log", requestSlot.captured.payload["remarks"])
+        assertEquals(FeeEndpoint.SubModules.REFUND, requestSlot.captured.subMod)
+        assertEquals(FeeEndpoint.ActionTypes.UPDATE, requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `updateRefundStatus omits a blank remarks`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("{}")))
+
+        repository(dispatcherApi).updateRefundStatus("1", "REJECTED", null)
+
+        assertFalse(requestSlot.captured.payload.containsKey("remarks"))
     }
 }

@@ -6,5 +6,5 @@
         UI takes its background from the Compose theme.
         The values-night variant mirrors OneAppBackgroundDark.
     -->
-    <color name="oneapp_window_background">#FAFAFA</color>
+    <color name="oneapp_window_background">#FDF8FC</color>
 </resources>

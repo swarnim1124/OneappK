@@ -28,10 +28,6 @@ object NetworkModule {
     fun provideGson(): Gson = GsonBuilder().create()
 
     @Provides
-    @RecaptchaSiteKey
-    fun provideRecaptchaSiteKey(): String = BuildConfig.RECAPTCHA_SITE_KEY
-
-    @Provides
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor =
         HttpLoggingInterceptor().apply {

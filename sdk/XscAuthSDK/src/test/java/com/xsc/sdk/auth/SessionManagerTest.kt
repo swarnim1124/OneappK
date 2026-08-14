@@ -43,10 +43,11 @@ class SessionManagerTest {
         return "header.$payload.signature"
     }
 
-    private fun tokenManagerReturning(token: String?): TokenManager {
+    private fun tokenManagerReturning(token: String?, email: String? = null): TokenManager {
         val manager = mockk<TokenManager>()
         every { manager.accessToken } returns token
         every { manager.accessTokenFlow } returns MutableStateFlow(token)
+        every { manager.email } returns email
         return manager
     }
 
@@ -99,6 +100,38 @@ class SessionManagerTest {
     }
 
     @Test
+    fun `getDisplayName falls back to the login response email when the token has neither a name nor an email claim`() {
+        val token = tokenFor("""{"user_id":3,"exp":9999999999}""")
+        val sessionManager = SessionManager(tokenManagerReturning(token, email = "vivaan.reddy@oneapp.dev"))
+
+        assertEquals("vivaan.reddy", sessionManager.getDisplayName())
+    }
+
+    @Test
+    fun `getDisplayName falls back to the literal placeholder when neither the token nor the login response has an email`() {
+        val token = tokenFor("""{"user_id":3,"exp":9999999999}""")
+        val sessionManager = SessionManager(tokenManagerReturning(token, email = null))
+
+        assertEquals("there", sessionManager.getDisplayName())
+    }
+
+    @Test
+    fun `getEmail falls back to the login response email when the token has no email claim`() {
+        val token = tokenFor("""{"user_id":3,"exp":9999999999}""")
+        val sessionManager = SessionManager(tokenManagerReturning(token, email = "vivaan.reddy@oneapp.dev"))
+
+        assertEquals("vivaan.reddy@oneapp.dev", sessionManager.getEmail())
+    }
+
+    @Test
+    fun `getEmail prefers the token's own email claim over the login response fallback`() {
+        val token = tokenFor("""{"user_id":3,"exp":9999999999,"email":"from-token@oneapp.local"}""")
+        val sessionManager = SessionManager(tokenManagerReturning(token, email = "from-login-response@oneapp.dev"))
+
+        assertEquals("from-token@oneapp.local", sessionManager.getEmail())
+    }
+
+    @Test
     fun `an expired token is not authenticated`() {
         val token = tokenFor("""{"user_id":3,"exp":1}""")
         val sessionManager = SessionManager(tokenManagerReturning(token))
@@ -147,5 +180,83 @@ class SessionManagerTest {
         val sessionManager = SessionManager(tokenManager)
 
         assertEquals(1, sessionManager.getInstitutionId())
+    }
+
+    // --- Wildcard matching (mirrors xsc_security/authorization.py, confirmed by the
+    // backend team's RBAC audit) ---
+
+    @Test
+    fun `the literal global wildcard grants every permission unconditionally`() {
+        val token = tokenFor("""{"user_id":3,"exp":9999999999,"permissions":["*.*.*.*"]}""")
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord.view"))
+        // Unconditional means it must also cover a malformed/legacy-shaped required
+        // string that doesn't split into 4 segments - the global wildcard is checked
+        // before the segment-count gate, not as a degenerate case of it.
+        assertTrue(sessionManager.hasPermission("timetable.timetable.view"))
+    }
+
+    @Test
+    fun `a module-level wildcard grants every action within that module`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"permissions":["m_attendance.*.*.*"]}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord.view"))
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_shortage.condonation.view"))
+        assertFalse(sessionManager.hasPermission("m_fee.sm_records.feeRecord.view"))
+    }
+
+    @Test
+    fun `a submodule-level wildcard grants every action within that submodule only`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"permissions":["m_attendance.sm_records.*.*"]}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord.view"))
+        assertFalse(sessionManager.hasPermission("m_attendance.sm_shortage.condonation.view"))
+    }
+
+    @Test
+    fun `an action-level wildcard grants every actionType for that action only`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"permissions":["m_attendance.sm_records.attendanceRecord.*"]}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord.view"))
+        assertTrue(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord.add"))
+        assertFalse(sessionManager.hasPermission("m_attendance.sm_records.attendanceSession.view"))
+    }
+
+    @Test
+    fun `a segment-count mismatch never falls back to a partial match`() {
+        // Granted permission has 4 segments but the required one doesn't split into 4 -
+        // per the confirmed backend algorithm this fails closed, it never trims or pads
+        // either side to force a comparison.
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"permissions":["m_attendance.sm_records.*.*"]}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertFalse(sessionManager.hasPermission("m_attendance.sm_records.attendanceRecord"))
+    }
+
+    @Test
+    fun `hasAnyPermission also resolves wildcards, not just exact matches`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"permissions":["m_attendance.*.*.*"]}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertTrue(
+            sessionManager.hasAnyPermission("m_fee.sm_records.feeRecord.view", "m_attendance.sm_records.attendanceRecord.view")
+        )
+        assertFalse(
+            sessionManager.hasAnyPermission("m_fee.sm_records.feeRecord.view", "m_exam.sm_schedule.examSchedule.view")
+        )
     }
 }

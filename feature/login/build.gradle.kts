@@ -34,8 +34,6 @@ dependencies {
     implementation(project(":sdk:XscCommonUI"))
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.gson)
-    implementation(libs.play.services.recaptcha)
-    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

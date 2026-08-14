@@ -39,3 +39,9 @@ google-services.json
 keystore.properties
 signing.properties
 ftl-service-account.json
+
+# Razorpay test key_id - safe to embed client-side (identifies the merchant account
+# by publishable key, not a bearer secret) but kept out of the repo the same way the
+# other per-developer/per-environment config above is, rather than as a literal in
+# committed Kotlin source.
+razorpay.properties

@@ -1,161 +1,49 @@
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.xsc.oneapp.feature.profile.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.xsc.sdk.commonui.button.PrimaryButton
 import com.xsc.sdk.theme.LocalSpacing
-import com.xsc.sdk.theme.OneAppMotion
-import kotlinx.coroutines.delay
 
 /**
  * Shared Profile presentation kit.
  *
- * The six detail screens each carried private copies of the same section card, label/
- * value row, loading spinner and empty state. Consolidated here so a change to "how a
- * profile field looks" happens once. No state, event or ViewModel call moved.
- *
- * [ErrorState]'s signature is deliberately unchanged - all six screens call it as
- * `ErrorState(message = ...) { retry }`.
+ * The scaffold, content-width wrapper, loading/empty/error triad and avatar moved to
+ * [com.xsc.sdk.commonui.record] / [com.xsc.sdk.commonui.avatar] - they were byte-for-byte
+ * (or, for the empty/error states, functionally identical once that shared module grew
+ * the action-button and spacing options this module's screens needed) duplicates of what
+ * Exam/Fee/Curriculum/Timetable/Attendance/Dashboard already share. What's left here -
+ * the section card, label/value row, person card and form card - is genuinely
+ * Profile-domain-specific layout that no other module needs.
  */
-
-/**
- * Consistent chrome for every Profile destination.
- *
- * Note the back affordance: the detail screens already received an `onNavigateBack`
- * callback and never rendered anything that called it, so the only way out was the
- * system back gesture. This wires the existing callback to a standard up button - no new
- * navigation, just an affordance for navigation that was already there.
- */
-@Composable
-fun ProfileScaffold(
-    title: String,
-    onNavigateBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    actions: @Composable () -> Unit = {},
-    content: @Composable (PaddingValues) -> Unit
-) {
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate up"
-                        )
-                    }
-                },
-                actions = { actions() },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-                    actionIconContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-        content = content
-    )
-}
-
-/** Caps content width so forms and value lists stay readable on tablets. */
-@Composable
-fun ProfileContentColumn(
-    modifier: Modifier = Modifier,
-    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val spacing = LocalSpacing.current
-    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        Column(
-            modifier = Modifier.widthIn(max = spacing.contentMaxWidth),
-            horizontalAlignment = horizontalAlignment,
-            verticalArrangement = Arrangement.spacedBy(spacing.lg),
-            content = content
-        )
-    }
-}
-
-/** Gradient monogram used by the profile header and the personal detail screen. */
-@Composable
-fun ProfileAvatar(name: String, modifier: Modifier = Modifier, size: Dp = 80.dp) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.tertiary
-                    )
-                ),
-                CircleShape
-            )
-            // Decorative: the name is rendered beside it, so announcing the initial
-            // again would just be noise.
-            .clearAndSetSemantics { },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = name.trim().take(1).ifBlank { "?" }.uppercase(),
-            style = MaterialTheme.typography.headlineMedium,
-            color = Color.White
-        )
-    }
-}
 
 /**
  * A titled group of label/value pairs.
@@ -180,11 +68,7 @@ fun ProfileSectionCard(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -193,15 +77,27 @@ fun ProfileSectionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.sm)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
+            // Icon-in-tinted-circle, per the design system's documented component spec:
+            // a 40dp circle at 10% of the tint colour, icon centred at full tint.
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        androidx.compose.foundation.shape.CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
         }
@@ -321,11 +217,7 @@ fun ProfilePersonCard(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(spacing.lg)) {
             Row(
@@ -450,11 +342,7 @@ fun ProfileFormCard(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(spacing.lg),
@@ -464,117 +352,3 @@ fun ProfileFormCard(
     }
 }
 
-/**
- * Loading indicator that only appears after a short delay.
- *
- * A spinner that flashes for 80ms on a fast response reads as a glitch; holding it back
- * makes quick loads look instant while slow ones still get feedback.
- */
-@Composable
-fun LoadingState(modifier: Modifier = Modifier) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(SPINNER_DELAY_MS)
-        visible = true
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .clearAndSetSemantics { contentDescription = "Loading" },
-        contentAlignment = Alignment.Center
-    ) {
-        AnimatedVisibility(visible = visible, enter = OneAppMotion.bannerEnter()) {
-            CircularProgressIndicator()
-        }
-    }
-}
-
-@Composable
-fun EmptyState(
-    message: String,
-    modifier: Modifier = Modifier,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null
-) {
-    val spacing = LocalSpacing.current
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = spacing.xxl),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.Inbox,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(spacing.lg))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        if (actionLabel != null && onAction != null) {
-            Spacer(modifier = Modifier.height(spacing.xl))
-            Box(modifier = Modifier.widthIn(max = 280.dp)) {
-                PrimaryButton(text = actionLabel, onClick = onAction)
-            }
-        }
-    }
-}
-
-/**
- * Signature unchanged - every Profile detail screen calls this as
- * `ErrorState(message = ...) { retry }`.
- */
-@Composable
-fun ErrorState(message: String, onRetry: () -> Unit) {
-    val spacing = LocalSpacing.current
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = spacing.xxl),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .background(MaterialTheme.colorScheme.errorContainer, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.ErrorOutline,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(28.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(spacing.lg))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(spacing.xl))
-        Box(modifier = Modifier.widthIn(max = 280.dp)) {
-            PrimaryButton(text = "Retry", onClick = onRetry)
-        }
-    }
-}
-
-private const val SPINNER_DELAY_MS = 250L

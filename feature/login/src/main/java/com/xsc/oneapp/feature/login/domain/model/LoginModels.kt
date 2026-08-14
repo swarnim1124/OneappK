@@ -3,8 +3,8 @@ package com.xsc.oneapp.feature.login.domain.model
 data class LoginResult(
     val token: String?,
     val refreshToken: String? = null,
-    val captchaRequired: Boolean,
-    val institutionId: Int? = null
+    val institutionId: Int? = null,
+    val email: String? = null
 )
 
 data class ForgotPasswordResult(

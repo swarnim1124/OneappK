@@ -52,7 +52,7 @@ class ProfileRemoteDataSourceImpl @Inject constructor(
     override suspend fun addAcademicDetail(payload: Map<String, Any>): AcademicDetailAddResponseDTO {
         return apiClient.request(
             module = ProfileEndpoint.MODULE,
-            submodule = ProfileEndpoint.SubModules.PERSONAL_DETAIL,
+            submodule = ProfileEndpoint.SubModules.ACADEMIC_DETAIL,
             action = ProfileEndpoint.Actions.ACADEMIC_DETAIL,
             actionType = ProfileEndpoint.ActionTypes.ADD,
             payload = payload
@@ -62,7 +62,7 @@ class ProfileRemoteDataSourceImpl @Inject constructor(
     override suspend fun getAcademicDetail(payload: Map<String, Any>): AcademicDetailViewResponseDTO {
         return apiClient.request(
             module = ProfileEndpoint.MODULE,
-            submodule = ProfileEndpoint.SubModules.PERSONAL_DETAIL,
+            submodule = ProfileEndpoint.SubModules.ACADEMIC_DETAIL,
             action = ProfileEndpoint.Actions.ACADEMIC_DETAIL,
             actionType = ProfileEndpoint.ActionTypes.VIEW,
             payload = payload
@@ -72,7 +72,7 @@ class ProfileRemoteDataSourceImpl @Inject constructor(
     override suspend fun updateAcademicDetail(payload: Map<String, Any>) {
         apiClient.request<Unit>(
             module = ProfileEndpoint.MODULE,
-            submodule = ProfileEndpoint.SubModules.PERSONAL_DETAIL,
+            submodule = ProfileEndpoint.SubModules.ACADEMIC_DETAIL,
             action = ProfileEndpoint.Actions.ACADEMIC_DETAIL,
             actionType = ProfileEndpoint.ActionTypes.UPDATE,
             payload = payload
@@ -82,7 +82,7 @@ class ProfileRemoteDataSourceImpl @Inject constructor(
     override suspend fun deleteAcademicDetail(payload: Map<String, Any>) {
         apiClient.request<Unit>(
             module = ProfileEndpoint.MODULE,
-            submodule = ProfileEndpoint.SubModules.PERSONAL_DETAIL,
+            submodule = ProfileEndpoint.SubModules.ACADEMIC_DETAIL,
             action = ProfileEndpoint.Actions.ACADEMIC_DETAIL,
             actionType = ProfileEndpoint.ActionTypes.DELETE,
             payload = payload

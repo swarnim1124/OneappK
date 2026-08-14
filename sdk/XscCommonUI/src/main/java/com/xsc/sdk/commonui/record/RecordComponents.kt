@@ -9,14 +9,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -52,6 +55,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.xsc.sdk.commonui.button.PrimaryButton
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.OneAppMotion
 import kotlinx.coroutines.delay
@@ -73,6 +77,7 @@ fun RecordScaffold(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     actions: @Composable () -> Unit = {},
+    floatingActionButton: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
@@ -97,26 +102,54 @@ fun RecordScaffold(
                 )
             )
         },
+        floatingActionButton = floatingActionButton,
         containerColor = MaterialTheme.colorScheme.background,
         content = content
     )
 }
 
 /** Standard content card. Supplying [onClick] makes it a real M3 clickable surface,
- * which brings button semantics, ripple and a 48dp-minimum target. */
+ * which brings button semantics, ripple and a 48dp-minimum target.
+ *
+ * Uses a soft drop shadow rather than a hairline border to read as elevated above the
+ * page - on this palette `surface` and `background` are nearly identical tones, so a
+ * border-only card was nearly invisible. Matches the design system's "Level 1 (Cards):
+ * 1dp shadow" spec and the 1dp precedent already established by Attendance's own card.
+ *
+ * [accentColor], when supplied, paints a 4dp status stripe down the card's leading edge -
+ * the design system's own status-history cards use this to make an outcome (e.g. a
+ * declined vs. a successful request) scannable without reading every pill. Card's own
+ * shape clip means the stripe automatically follows the rounded corners; omitted
+ * entirely by default, so every existing call site renders identically to before. */
 @Composable
 fun RecordCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    accentColor: Color? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val spacing = LocalSpacing.current
     val colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    val elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    val border = androidx.compose.foundation.BorderStroke(
-        1.dp,
-        MaterialTheme.colorScheme.outlineVariant
-    )
+    val elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    val innerContent: @Composable ColumnScope.() -> Unit = {
+        if (accentColor != null) {
+            // IntrinsicSize.Min forces the Row to measure its height as whatever the
+            // (intrinsically-sized) content Column needs, so the stripe's fillMaxHeight()
+            // has something concrete to fill - without it a Row's height is otherwise
+            // unbounded and fillMaxHeight() has nothing to measure against.
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .fillMaxHeight()
+                        .background(accentColor)
+                )
+                Column(modifier = Modifier.padding(spacing.lg), content = content)
+            }
+        } else {
+            Column(modifier = Modifier.padding(spacing.lg), content = content)
+        }
+    }
 
     if (onClick != null) {
         Card(
@@ -124,21 +157,17 @@ fun RecordCard(
             modifier = modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
             colors = colors,
-            border = border,
-            elevation = elevation
-        ) {
-            Column(modifier = Modifier.padding(spacing.lg), content = content)
-        }
+            elevation = elevation,
+            content = innerContent
+        )
     } else {
         Card(
             modifier = modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.medium,
             colors = colors,
-            border = border,
-            elevation = elevation
-        ) {
-            Column(modifier = Modifier.padding(spacing.lg), content = content)
-        }
+            elevation = elevation,
+            content = innerContent
+        )
     }
 }
 
@@ -186,15 +215,17 @@ fun RecordRow(
     }
 }
 
+/** Matches the design system's "Icon-in-tinted-circle" spec exactly: 40x40dp
+ * background at 10% opacity of the tint, icon centered at full opacity. */
 @Composable
 fun IconBadge(icon: ImageVector, tint: Color = MaterialTheme.colorScheme.primary) {
     Box(
         modifier = Modifier
-            .size(36.dp)
-            .background(tint.copy(alpha = 0.12f), CircleShape),
+            .size(40.dp)
+            .background(tint.copy(alpha = 0.10f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -212,6 +243,35 @@ fun StatusPill(
             .background(tint.copy(alpha = 0.12f), CircleShape)
             .padding(horizontal = 10.dp, vertical = 4.dp)
     )
+}
+
+/**
+ * A small tinted label, optionally with a leading icon - Timetable's room/faculty
+ * badge and Curriculum's course-code badge were separately-written versions of this
+ * same idea (a compact contextual tag), just with an icon in one and not the other,
+ * and two different colour/shape treatments. This follows [StatusPill]'s established
+ * alpha-tint convention (already the app's dominant "pill" language) rather than
+ * inventing a third, so a badge and a status pill read as the same visual family.
+ */
+@Composable
+fun TintedChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    tint: Color = MaterialTheme.colorScheme.primary
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = modifier
+            .background(tint.copy(alpha = 0.1f), MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(12.dp))
+        }
+        Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+    }
 }
 
 /** Secondary detail line under a record's headline. */
@@ -290,8 +350,15 @@ fun LoadingState(modifier: Modifier = Modifier) {
     }
 }
 
+/** [actionLabel]/[onAction], when both supplied, render a [PrimaryButton] below
+ * [message] - the profile detail screens' "Reload" affordance on an empty record. */
 @Composable
-fun EmptyState(message: String, modifier: Modifier = Modifier) {
+fun EmptyState(
+    message: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
     val spacing = LocalSpacing.current
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -319,12 +386,27 @@ fun EmptyState(message: String, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+            if (actionLabel != null && onAction != null) {
+                Spacer(modifier = Modifier.height(spacing.xl))
+                Box(modifier = Modifier.widthIn(max = 280.dp)) {
+                    PrimaryButton(text = actionLabel, onClick = onAction)
+                }
+            }
         }
     }
 }
 
+/**
+ * [context], when supplied, renders as a second, smaller line below [message] - the
+ * permission/endpoint/reference-id detail of a traced API failure (see
+ * [com.xsc.oneapp.core.result.AppError.Traced.context]). Kept as a plain optional
+ * String rather than taking an `AppError` directly: this module has no dependency on
+ * `:core`, so the caller (which does) destructures its own `UiState`/`AppError`
+ * before calling this - see CurriculumScreen/FeeScreen/TimetableScreen/ExamScreen
+ * for the pattern.
+ */
 @Composable
-fun ErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun ErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier, context: String? = null) {
     val spacing = LocalSpacing.current
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -352,6 +434,15 @@ fun ErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifi
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
+            if (context != null) {
+                Text(
+                    context,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = spacing.xs)
+                )
+            }
             TextButton(onClick = onRetry, modifier = Modifier.padding(top = spacing.xs)) {
                 Text("Try again")
             }
@@ -359,12 +450,72 @@ fun ErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
-/** Caps content width so cards do not stretch to an unreadable line length on tablets. */
+/** Caps content width so cards do not stretch to an unreadable line length on tablets.
+ * [verticalArrangement]/[horizontalAlignment] default to [Column]'s own defaults (no
+ * gap, start-aligned) - Profile's form/detail screens pass a spaced arrangement for
+ * their stacked section cards. */
 @Composable
-fun ResponsiveContent(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun ResponsiveContent(
+    modifier: Modifier = Modifier,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    content: @Composable ColumnScope.() -> Unit
+) {
     val spacing = LocalSpacing.current
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        Column(modifier = Modifier.widthIn(max = spacing.contentMaxWidth), content = content)
+        Column(
+            modifier = Modifier.widthIn(max = spacing.contentMaxWidth),
+            verticalArrangement = verticalArrangement,
+            horizontalAlignment = horizontalAlignment,
+            content = content
+        )
+    }
+}
+
+/**
+ * Honest terminal state for a flow whose real backend action doesn't exist yet (no
+ * payment gateway, no submit-correction use case, etc.) - a fabricated success screen
+ * here would tell the user something happened when it didn't. Fee and Attendance each
+ * shipped a private copy of this same scaffold-plus-centered-icon-and-message layout;
+ * this is that layout, with the icon/copy left to the caller since those are the only
+ * things that differ per feature.
+ */
+@Composable
+fun NotYetAvailableScreen(
+    title: String,
+    icon: ImageVector,
+    headline: String,
+    message: String,
+    onBack: () -> Unit
+) {
+    RecordScaffold(title = title, onBack = onBack) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(modifier = Modifier.weight(1f))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            Text(
+                headline,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Box(modifier = Modifier.weight(1f))
+        }
     }
 }
 

@@ -81,7 +81,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
@@ -91,6 +90,8 @@ import com.xsc.oneapp.feature.dashboard.domain.model.DashboardTab
 import com.xsc.oneapp.feature.dashboard.domain.model.ModuleItem
 import com.xsc.oneapp.feature.dashboard.domain.model.QuickAction
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardState
+import com.xsc.sdk.commonui.avatar.InitialsAvatar
+import com.xsc.sdk.commonui.menu.MenuRow
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.OneAppMotion
 
@@ -155,6 +156,7 @@ private fun Modifier.pressScale(interactionSource: MutableInteractionSource): Mo
 
 @Composable
 fun DashboardTopBar(
+    userName: String,
     onMenuTap: () -> Unit,
     unreadCount: Int,
     onNotificationTap: () -> Unit,
@@ -221,28 +223,15 @@ fun DashboardTopBar(
             }
         }
 
-        IconButton(onClick = onProfileTap) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(
-                        Brush.linearGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.tertiary
-                            )
-                        ),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Profile",
-                    modifier = Modifier.size(18.dp),
-                    tint = Color.White
-                )
-            }
+        IconButton(
+            onClick = onProfileTap,
+            modifier = Modifier.semantics { contentDescription = "Profile" }
+        ) {
+            InitialsAvatar(
+                name = userName,
+                size = 32.dp,
+                textStyle = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
@@ -263,7 +252,10 @@ fun BottomTabBar(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp
     ) {
-        DashboardTab.entries.forEach { tab ->
+        // Notifications stays a DashboardTab (the top bar's bell icon and NotificationsTab
+        // still use it) but is dropped from the bottom bar itself - filtered out here
+        // rather than removed from the enum, so nothing else that depends on it breaks.
+        DashboardTab.entries.filter { it != DashboardTab.NOTIFICATIONS }.forEach { tab ->
             val selected = selectedTab == tab
             NavigationBarItem(
                 selected = selected,
@@ -328,26 +320,11 @@ fun SidebarView(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(
-                                            MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.tertiary
-                                        )
-                                    ),
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                state.userName.take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Color.White
-                            )
-                        }
+                        InitialsAvatar(
+                            name = state.userName,
+                            size = 44.dp,
+                            textStyle = MaterialTheme.typography.titleMedium
+                        )
                         Spacer(modifier = Modifier.width(spacing.md))
                         Column(modifier = Modifier.widthIn(max = 150.dp)) {
                             Text(
@@ -404,20 +381,20 @@ fun SidebarView(
                 )
 
                 state.modules.forEach { module ->
-                    SidebarRow(
+                    MenuRow(
                         icon = getIconForModule(module.icon),
                         label = module.displayName,
-                        tint = module.accentColor
+                        iconTint = module.accentColor
                     ) { onModuleSelect(module) }
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                SidebarRow(
+                MenuRow(
                     icon = Icons.AutoMirrored.Filled.Logout,
                     label = "Sign out",
-                    tint = MaterialTheme.colorScheme.error,
+                    iconTint = MaterialTheme.colorScheme.error,
                     onClick = onLogout
                 )
                 Spacer(modifier = Modifier.navigationBarsPadding())
@@ -452,39 +429,6 @@ private fun Modifier.scrimDismiss(onClick: () -> Unit): Modifier {
         onClickLabel = "Close menu",
         onClick = onClick
     )
-}
-
-@Composable
-private fun SidebarRow(
-    icon: ImageVector,
-    label: String,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    val spacing = LocalSpacing.current
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Surface(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        color = Color.Transparent,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .padding(horizontal = spacing.lg, vertical = spacing.md),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = tint)
-            Spacer(modifier = Modifier.width(spacing.md))
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
 }
 
 @Composable
@@ -575,8 +519,7 @@ private fun PinnedModuleChip(module: ModuleItem, onClick: () -> Unit, onUnpin: (
             .pressScale(interactionSource),
         shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(spacing.md)) {
             Row(
@@ -694,8 +637,7 @@ fun StatCardView(stat: DashboardStat) {
             },
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -776,11 +718,7 @@ fun ModuleCardView(modifier: Modifier = Modifier, module: ModuleItem, onClick: (
             .pressScale(interactionSource),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -825,8 +763,7 @@ fun QuickActionRow(action: QuickAction) {
             .heightIn(min = 64.dp),
         shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier

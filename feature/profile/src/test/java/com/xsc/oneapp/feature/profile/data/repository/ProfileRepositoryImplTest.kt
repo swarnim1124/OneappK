@@ -19,8 +19,10 @@ class ProfileRepositoryImplTest {
     private val personalDetailDto = PersonalDetailDTO(
         userId = 3, studentId = 77, email = "student@oneapp.local", alternateEmail = null, mobile = "9999999999",
         firstName = "Student", middleName = null, lastName = "One", dob = "2000-01-01", genderId = 1,
-        photoDocId = null, nationalityId = null, primaryLangId = null, bloodGroupId = null,
-        createdAt = "2026-01-01", updatedAt = "2026-01-01"
+        gender = null, genderName = null, photoDocId = null, nationalityId = null, nationality = null,
+        nationalityName = null, primaryLangId = null, primaryLang = null, primaryLanguage = null,
+        maritalStatusId = null, maritalStatus = null, bloodGroupId = null, bloodGroup = null,
+        bloodGroupName = null, createdAt = "2026-01-01", updatedAt = "2026-01-01"
     )
 
     @Test

@@ -304,13 +304,16 @@ class AttendanceViewModelTest {
 
     @Test
     fun `a failing headline section does surface an error for the whole overview`() = runTest {
+        // uiStateCatching maps a NetworkError to a fixed, reason-based message now
+        // (see core.result.AppError.Network) rather than passing the exception's own
+        // text through - the assertion checks that fixed copy, not the thrown message.
         coEvery { getAttendanceShortageUseCase() } throws
             APIError.NetworkError("Unable to reach the server")
 
         val vm = viewModel()
         vm.loadOverview()
 
-        assertEquals("Unable to reach the server", vm.overview.value.errorMessage)
+        assertEquals("Server is unreachable. Try again in a few minutes.", vm.overview.value.errorMessage)
     }
 
     private fun stubAllEmpty() {

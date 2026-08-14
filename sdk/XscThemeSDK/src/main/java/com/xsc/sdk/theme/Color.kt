@@ -8,30 +8,34 @@ import androidx.compose.ui.graphics.Color
  * Screens should read `MaterialTheme.colorScheme`, not these constants directly - the
  * only reason they are public is that [OneAppTheme] assembles the scheme from them.
  *
- * The previous version defined six roles per mode (primary, secondary, tertiary,
- * background, surface, error) and let Material derive the other ~25. Those derived
- * values are computed from the *default* baseline palette rather than from the brand
- * indigo, which is why surfaces, outlines and every `*Container` role skewed grey-purple
- * and looked unrelated to the brand. Each role below is now stated explicitly, so a
- * card, a chip and a filled button share one visual family.
+ * Values below match the Academic Interface System design system exactly (Stitch
+ * export, 2026-08 - see `academic_interface_system/DESIGN.md` in the delivered zip),
+ * a Material Theme Builder-generated indigo scheme. Light-mode values are the
+ * design system's literal tokens. Dark mode has no Stitch-provided tokens for this
+ * seed, so primary/secondary/tertiary use the design system's own `*-fixed`/
+ * `*-fixed-dim` roles - the standard M3 relationship a light scheme's fixed roles
+ * already encode the correct dark-mode counterpart, so these aren't invented values.
+ * Error dark values are Material Theme Builder's well-known standard output for the
+ * `#BA1A1A` seed. Neutral dark surfaces stay close to the existing deep-charcoal
+ * baseline, consistent with the design system's own prose ("deep charcoal #1C1B1F").
  *
  * Existing names are preserved so no call site changes.
  */
 
-// --- Brand seeds (unchanged values - kept so the app's identity is untouched) ---
-val OneAppPrimaryLight = Color(0xFF4F46E5)
-val OneAppSecondaryLight = Color(0xFF06B6D4)
-val OneAppTertiaryLight = Color(0xFF8B5CF6)
-val OneAppBackgroundLight = Color(0xFFFAFAFA)
-val OneAppSurfaceLight = Color(0xFFFFFFFF)
-val OneAppErrorLight = Color(0xFFDC2626)
+// --- Brand seeds ---
+val OneAppPrimaryLight = Color(0xFF24389C)
+val OneAppSecondaryLight = Color(0xFF5B5D70)
+val OneAppTertiaryLight = Color(0xFF5A384F)
+val OneAppBackgroundLight = Color(0xFFFDF8FC)
+val OneAppSurfaceLight = Color(0xFFFDF8FC)
+val OneAppErrorLight = Color(0xFFBA1A1A)
 
-val OneAppPrimaryDark = Color(0xFF818CF8)
-val OneAppSecondaryDark = Color(0xFF22D3EE)
-val OneAppTertiaryDark = Color(0xFFA78BFA)
-val OneAppBackgroundDark = Color(0xFF121212)
-val OneAppSurfaceDark = Color(0xFF1E1E1E)
-val OneAppErrorDark = Color(0xFFEF4444)
+val OneAppPrimaryDark = Color(0xFFBAC3FF)
+val OneAppSecondaryDark = Color(0xFFC4C5DB)
+val OneAppTertiaryDark = Color(0xFFE8B9D5)
+val OneAppBackgroundDark = Color(0xFF1C1B1F)
+val OneAppSurfaceDark = Color(0xFF1C1B1F)
+val OneAppErrorDark = Color(0xFFFFB4AB)
 
 // --- Semantic status colors outside Material3's role set (no success/warning slot) ---
 // Values deliberately unchanged: these are referenced directly by exam, fee, timetable
@@ -51,64 +55,83 @@ internal val OneAppSuccessOnDark = Color(0xFF34D399)
 
 // --- Light scheme, stated explicitly ---
 internal val LightOnPrimary = Color(0xFFFFFFFF)
-internal val LightPrimaryContainer = Color(0xFFE0E7FF)
-internal val LightOnPrimaryContainer = Color(0xFF1E1B4B)
+internal val LightPrimaryContainer = Color(0xFF3F51B5)
+internal val LightOnPrimaryContainer = Color(0xFFCACFFF)
 
 internal val LightOnSecondary = Color(0xFFFFFFFF)
-internal val LightSecondaryContainer = Color(0xFFCFFAFE)
-internal val LightOnSecondaryContainer = Color(0xFF083344)
+internal val LightSecondaryContainer = Color(0xFFE0E1F8)
+internal val LightOnSecondaryContainer = Color(0xFF616376)
 
 internal val LightOnTertiary = Color(0xFFFFFFFF)
-internal val LightTertiaryContainer = Color(0xFFEDE9FE)
-internal val LightOnTertiaryContainer = Color(0xFF2E1065)
+internal val LightTertiaryContainer = Color(0xFF744F67)
+internal val LightOnTertiaryContainer = Color(0xFFF4C5E1)
 
-internal val LightOnBackground = Color(0xFF111827)
-internal val LightOnSurface = Color(0xFF111827)
-// Neutral-cool grey rather than Material's default purple-tinted variant - the latter
-// read as "unfinished template" against the indigo brand.
-internal val LightSurfaceVariant = Color(0xFFF1F5F9)
-internal val LightOnSurfaceVariant = Color(0xFF64748B)
-internal val LightSurfaceTint = OneAppPrimaryLight
-internal val LightInverseSurface = Color(0xFF1F2937)
-internal val LightInverseOnSurface = Color(0xFFF9FAFB)
-internal val LightInversePrimary = Color(0xFFA5B4FC)
+internal val LightOnBackground = Color(0xFF1C1B1E)
+internal val LightOnSurface = Color(0xFF1C1B1E)
+internal val LightSurfaceVariant = Color(0xFFE5E1E5)
+internal val LightOnSurfaceVariant = Color(0xFF454652)
+internal val LightSurfaceTint = Color(0xFF4355B9)
+internal val LightInverseSurface = Color(0xFF313033)
+internal val LightInverseOnSurface = Color(0xFFF4EFF4)
+internal val LightInversePrimary = Color(0xFFBAC3FF)
 
-internal val LightOutline = Color(0xFFCBD5E1)
-internal val LightOutlineVariant = Color(0xFFE2E8F0)
+internal val LightOutline = Color(0xFF757684)
+internal val LightOutlineVariant = Color(0xFFC5C5D4)
 
 internal val LightOnError = Color(0xFFFFFFFF)
-internal val LightErrorContainer = Color(0xFFFEE2E2)
-internal val LightOnErrorContainer = Color(0xFF7F1D1D)
+internal val LightErrorContainer = Color(0xFFFFDAD6)
+internal val LightOnErrorContainer = Color(0xFF93000A)
 
 internal val LightScrim = Color(0xFF000000)
 
+// M3 surface-container ladder - not part of the previous 6-role scheme, added because
+// the design system uses it explicitly (e.g. surface-container-lowest for card-on-card
+// contexts). Values are the design system's literal tokens.
+internal val LightSurfaceDim = Color(0xFFDDD9DD)
+internal val LightSurfaceBright = Color(0xFFFDF8FC)
+internal val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
+internal val LightSurfaceContainerLow = Color(0xFFF7F2F6)
+internal val LightSurfaceContainer = Color(0xFFF1ECF1)
+internal val LightSurfaceContainerHigh = Color(0xFFEBE7EB)
+internal val LightSurfaceContainerHighest = Color(0xFFE5E1E5)
+
 // --- Dark scheme, stated explicitly ---
-internal val DarkOnPrimary = Color(0xFF1E1B4B)
-internal val DarkPrimaryContainer = Color(0xFF312E81)
-internal val DarkOnPrimaryContainer = Color(0xFFE0E7FF)
+// primary/secondary/tertiary families derived from the light scheme's own fixed roles
+// (on-primary-fixed, primary-fixed, on-primary-fixed-variant, etc.) - see file doc comment.
+internal val DarkOnPrimary = Color(0xFF00105C)
+internal val DarkPrimaryContainer = Color(0xFF293CA0)
+internal val DarkOnPrimaryContainer = Color(0xFFDEE0FF)
 
-internal val DarkOnSecondary = Color(0xFF083344)
-internal val DarkSecondaryContainer = Color(0xFF155E75)
-internal val DarkOnSecondaryContainer = Color(0xFFCFFAFE)
+internal val DarkOnSecondary = Color(0xFF181B2B)
+internal val DarkSecondaryContainer = Color(0xFF434658)
+internal val DarkOnSecondaryContainer = Color(0xFFE0E1F8)
 
-internal val DarkOnTertiary = Color(0xFF2E1065)
-internal val DarkTertiaryContainer = Color(0xFF5B21B6)
-internal val DarkOnTertiaryContainer = Color(0xFFEDE9FE)
+internal val DarkOnTertiary = Color(0xFF2E1126)
+internal val DarkTertiaryContainer = Color(0xFF5E3C53)
+internal val DarkOnTertiaryContainer = Color(0xFFFFD8EE)
 
-internal val DarkOnBackground = Color(0xFFF3F4F6)
-internal val DarkOnSurface = Color(0xFFF3F4F6)
-internal val DarkSurfaceVariant = Color(0xFF2A2A2E)
-internal val DarkOnSurfaceVariant = Color(0xFF9CA3AF)
+internal val DarkOnBackground = Color(0xFFE6E1E6)
+internal val DarkOnSurface = Color(0xFFE6E1E6)
+internal val DarkSurfaceVariant = Color(0xFF47464F)
+internal val DarkOnSurfaceVariant = Color(0xFFC9C5D0)
 internal val DarkSurfaceTint = OneAppPrimaryDark
-internal val DarkInverseSurface = Color(0xFFF3F4F6)
-internal val DarkInverseOnSurface = Color(0xFF1F2937)
-internal val DarkInversePrimary = Color(0xFF4F46E5)
+internal val DarkInverseSurface = Color(0xFFE6E1E6)
+internal val DarkInverseOnSurface = Color(0xFF313033)
+internal val DarkInversePrimary = Color(0xFF4355B9)
 
-internal val DarkOutline = Color(0xFF3F3F46)
-internal val DarkOutlineVariant = Color(0xFF2A2A2E)
+internal val DarkOutline = Color(0xFF91909E)
+internal val DarkOutlineVariant = Color(0xFF47464F)
 
-internal val DarkOnError = Color(0xFF450A0A)
-internal val DarkErrorContainer = Color(0xFF7F1D1D)
-internal val DarkOnErrorContainer = Color(0xFFFEE2E2)
+internal val DarkOnError = Color(0xFF690005)
+internal val DarkErrorContainer = Color(0xFF93000A)
+internal val DarkOnErrorContainer = Color(0xFFFFDAD6)
 
 internal val DarkScrim = Color(0xFF000000)
+
+internal val DarkSurfaceDim = Color(0xFF1C1B1F)
+internal val DarkSurfaceBright = Color(0xFF444347)
+internal val DarkSurfaceContainerLowest = Color(0xFF17161A)
+internal val DarkSurfaceContainerLow = Color(0xFF242327)
+internal val DarkSurfaceContainer = Color(0xFF28272B)
+internal val DarkSurfaceContainerHigh = Color(0xFF333136)
+internal val DarkSurfaceContainerHighest = Color(0xFF3E3D41)

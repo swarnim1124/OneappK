@@ -1,5 +1,6 @@
 package com.xsc.oneapp.feature.profile.ui.screen
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -21,17 +22,18 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xsc.oneapp.feature.profile.ui.components.EmptyState
-import com.xsc.oneapp.feature.profile.ui.components.ErrorState
-import com.xsc.oneapp.feature.profile.ui.components.LoadingState
-import com.xsc.oneapp.feature.profile.ui.components.ProfileContentColumn
 import com.xsc.oneapp.feature.profile.ui.components.ProfileFormCard
 import com.xsc.oneapp.feature.profile.ui.components.ProfileHeaderRow
-import com.xsc.oneapp.feature.profile.ui.components.ProfileScaffold
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.ui.state.MedicalDetailEvent
 import com.xsc.oneapp.feature.profile.ui.state.MedicalDetailState
 import com.xsc.oneapp.feature.profile.ui.viewmodel.MedicalDetailViewModel
 import com.xsc.sdk.commonui.button.PrimaryButton
+import com.xsc.sdk.commonui.record.EmptyState
+import com.xsc.sdk.commonui.record.ErrorState
+import com.xsc.sdk.commonui.record.LoadingState
+import com.xsc.sdk.commonui.record.RecordScaffold
+import com.xsc.sdk.commonui.record.ResponsiveContent
 import com.xsc.sdk.commonui.textfield.PremiumTextField
 import com.xsc.sdk.theme.LocalSpacing
 
@@ -54,7 +56,7 @@ fun MedicalDetailScreen(
         viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail)
     }
 
-    ProfileScaffold(title = "Medical details", onNavigateBack = onNavigateBack) { padding ->
+    RecordScaffold(title = "Medical details", onBack = onNavigateBack) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,7 +82,7 @@ fun MedicalDetailScreen(
                                 vertical = spacing.xl
                             )
                     ) {
-                        ProfileContentColumn {
+                        ResponsiveContent(verticalArrangement = Arrangement.spacedBy(spacing.lg)) {
                             ProfileHeaderRow(
                                 icon = Icons.Default.Favorite,
                                 title = "Health information",
@@ -140,17 +142,21 @@ fun MedicalDetailScreen(
                     }
                 }
 
-                is MedicalDetailState.BusinessError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail)
-                }
+                is MedicalDetailState.BusinessError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail) }
+                )
 
-                is MedicalDetailState.NetworkError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail)
-                }
+                is MedicalDetailState.NetworkError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail) }
+                )
 
-                is MedicalDetailState.UnexpectedError -> ErrorState(message = currentState.message) {
-                    viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail)
-                }
+                is MedicalDetailState.UnexpectedError -> ErrorState(
+                    message = currentState.message,
+                    onRetry = { viewModel.onEvent(MedicalDetailEvent.LoadMedicalDetail) },
+                    context = (currentState.appError as? AppError.Traced)?.context
+                )
 
                 is MedicalDetailState.Empty -> EmptyState(
                     message = "No medical details on record yet.",

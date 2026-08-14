@@ -1,5 +1,6 @@
 package com.xsc.oneapp.feature.profile.ui.state
 
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.feature.profile.domain.model.AcademicDetail
 
 sealed class AcademicDetailState {
@@ -7,8 +8,8 @@ sealed class AcademicDetailState {
     data class Success(val academicDetail: AcademicDetail) : AcademicDetailState()
     object Empty : AcademicDetailState()
     data class BusinessError(val message: String) : AcademicDetailState()
-    data class NetworkError(val message: String) : AcademicDetailState()
-    data class UnexpectedError(val message: String) : AcademicDetailState()
+    data class NetworkError(val message: String, val appError: AppError? = null) : AcademicDetailState()
+    data class UnexpectedError(val message: String, val appError: AppError? = null) : AcademicDetailState()
 }
 
 sealed class AcademicDetailEvent {
