@@ -33,9 +33,14 @@ import com.xsc.sdk.theme.OneAppMotion
  * Shared text field used by login, forgot-password, and every profile form screen.
  *
  * Parameters and behaviour are unchanged - the field still reports every keystroke
- * through [onTextChange] and no validation logic moved here. The changes are visual and
+ * through [onTextChange] and no validation logic moved here, and the [placeholder]
+ * parameter name is unchanged so no call site needs editing. The changes are visual and
  * assistive:
  *
+ *  - [placeholder] now renders as a real M3 floating label (floats to the outline on
+ *    focus/filled, per the design system's Input Fields spec) rather than a plain
+ *    placeholder that only shows on an empty field - the caller-facing contract is the
+ *    same string, just presented the way M3 outlined fields are meant to be.
  *  - The error message animates in and out (expand + fade) rather than appearing
  *    instantly and shoving the layout down.
  *  - Errors get an inline icon and the field's own error semantics, so the message is
@@ -70,7 +75,7 @@ fun PremiumTextField(
         OutlinedTextField(
             value = text,
             onValueChange = onTextChange,
-            placeholder = {
+            label = {
                 Text(placeholder, style = MaterialTheme.typography.bodyLarge)
             },
             leadingIcon = icon?.let {

@@ -4,31 +4,44 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Policy
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.attendance.domain.model.AttendanceConfiguration
 import com.xsc.oneapp.feature.attendance.domain.model.AttendanceType
 import com.xsc.oneapp.feature.attendance.ui.components.AttendanceCard
 import com.xsc.oneapp.feature.attendance.ui.components.AttendanceListRow
-import com.xsc.oneapp.feature.attendance.ui.components.AttendanceScaffold
-import com.xsc.oneapp.feature.attendance.ui.components.DetailText
-import com.xsc.oneapp.feature.attendance.ui.components.SectionChips
 import com.xsc.oneapp.feature.attendance.ui.components.SectionList
 import com.xsc.oneapp.feature.attendance.ui.components.StatusPill
+import com.xsc.sdk.commonui.record.DetailText
+import com.xsc.sdk.commonui.record.RecordScaffold
+import com.xsc.sdk.commonui.record.SectionChips
 import com.xsc.oneapp.feature.attendance.ui.viewmodel.AttendanceViewModel
+import com.xsc.sdk.theme.OneAppSuccess
+import com.xsc.sdk.theme.OneAppWarning
 
 /**
  * Institution reference data: the attendance policy in force, and the marking codes it
@@ -53,7 +66,7 @@ fun AttendancePolicyScreen(
 
     LaunchedEffect(Unit) { viewModel.loadPolicy() }
 
-    AttendanceScaffold(title = "Policy & marking types", onBack = onBack) { padding ->
+    RecordScaffold(title = "Policy & marking types", onBack = onBack) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -89,14 +102,29 @@ fun AttendancePolicyScreen(
 @Composable
 private fun PolicyRow(config: AttendanceConfiguration) {
     AttendanceCard {
-        AttendanceListRow(
-            icon = Icons.Default.Policy,
-            title = config.policyName ?: "Attendance policy",
-            subtitle = config.minAttendancePercent?.let { "Minimum $it% required" },
-            trailing = if (config.isActive == "true") {
-                { StatusPill("Active") }
-            } else null
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (config.minAttendancePercent != null) {
+                Text(
+                    "${config.minAttendancePercent}%",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            AttendanceListRow(
+                icon = Icons.Default.Policy,
+                title = config.policyName ?: "Attendance policy",
+                subtitle = config.minAttendancePercent?.let { "Minimum required" },
+                trailing = if (config.isActive == "true") {
+                    { StatusPill("Active") }
+                } else null,
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         val flags = buildList {
             if (config.allowLateMarking == "true") add("Late marking allowed")
@@ -131,15 +159,36 @@ private fun PolicyRow(config: AttendanceConfiguration) {
 
 @Composable
 private fun TypeRow(type: AttendanceType) {
+    val (icon, tint) = markingTypeStyle(type.lookupCode, type.lookupName)
+
     AttendanceCard {
         AttendanceListRow(
-            icon = Icons.Default.Category,
+            icon = icon,
             title = type.lookupName ?: "Marking type",
             subtitle = type.lookupCode,
-            iconTint = MaterialTheme.colorScheme.secondary,
+            iconTint = tint,
             trailing = if (type.isActive == "true") {
                 { StatusPill("Active") }
             } else null
         )
+    }
+}
+
+/**
+ * Reads the icon/colour from this institution's own marking code (`lookupCode`) and
+ * name rather than assuming a fixed universal set of codes - institutions define their
+ * own via sch_lookup.tb_lookup cat_id=70 (see AttendanceType's doc comment), so a code
+ * this doesn't recognise falls open to a neutral badge instead of guessing.
+ */
+@Composable
+private fun markingTypeStyle(code: String?, name: String?): Pair<ImageVector, Color> {
+    val key = (code ?: name)?.trim()?.uppercase()
+    return when {
+        key == null -> Icons.Default.Category to MaterialTheme.colorScheme.secondary
+        key.startsWith("P") -> Icons.Default.CheckCircle to OneAppSuccess
+        key.startsWith("A") -> Icons.Default.Cancel to MaterialTheme.colorScheme.error
+        key.startsWith("L") -> Icons.Default.Schedule to OneAppWarning
+        key.startsWith("E") || key.startsWith("M") -> Icons.Default.MedicalServices to MaterialTheme.colorScheme.tertiary
+        else -> Icons.Default.Category to MaterialTheme.colorScheme.secondary
     }
 }

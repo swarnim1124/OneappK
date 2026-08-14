@@ -5,6 +5,7 @@ object ProfileEndpoint {
     
     object SubModules {
         const val PERSONAL_DETAIL = "sm_personal_detail"
+        const val ACADEMIC_DETAIL = "sm_academic_detail"
         const val FAMILY_DETAIL = "sm_family_detail"
         const val MEDICAL_DETAIL = "sm_medical_detail"
         const val SETTINGS = "sm_settings"
@@ -24,5 +25,6 @@ object ProfileEndpoint {
         const val VIEW = "view"
         const val UPDATE = "update"
         const val DELETE = "delete"
+        const val RESET = "reset"
     }
 }

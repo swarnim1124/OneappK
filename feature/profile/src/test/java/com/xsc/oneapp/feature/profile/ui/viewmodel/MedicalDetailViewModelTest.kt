@@ -28,9 +28,10 @@ class MedicalDetailViewModelTest {
     private lateinit var updateMedicalDetailUseCase: UpdateMedicalDetailUseCase
 
     private val medicalDetail = MedicalDetail(
-        bloodGroupId = 1, allergies = emptyList(), chronicConditions = emptyList(), medications = emptyList(),
-        height = 170.0, weight = 65.0, disabilityTypeId = null,
-        doctorName = "Dr. Smith", doctorContact = "9999999999", insurancePolicyNo = "POLICY-1"
+        bloodGroupId = 1, bloodGroup = "A+", allergies = emptyList(), chronicConditions = emptyList(),
+        medications = emptyList(), height = 170.0, weight = 65.0, disabilityTypeId = null,
+        disabilityType = "", doctorName = "Dr. Smith", doctorContact = "9999999999",
+        insurancePolicyNo = "POLICY-1"
     )
 
     @Before

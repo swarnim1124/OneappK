@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -57,8 +58,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.login.ui.effect.LoginEffect
 import com.xsc.oneapp.feature.login.ui.event.LoginEvent
+import com.xsc.oneapp.feature.login.ui.state.LoginError
 import com.xsc.oneapp.feature.login.ui.viewmodel.LoginViewModel
 import com.xsc.sdk.commonui.button.PrimaryButton
+import com.xsc.sdk.commonui.error.ErrorBannerVisibility
+import com.xsc.sdk.commonui.error.InlineErrorBanner
+import com.xsc.sdk.commonui.error.TracedErrorCard
 import com.xsc.sdk.commonui.logo.OneAppLogo
 import com.xsc.sdk.commonui.textfield.PremiumTextField
 import com.xsc.sdk.theme.LocalDarkTheme
@@ -145,10 +150,15 @@ fun LoginScreen(
                     password = state.passwordInput,
                     isPasswordVisible = state.isPasswordVisible,
                     isLoading = state.isLoading,
+                    error = state.error,
                     onEmailChange = { viewModel.onEvent(LoginEvent.EmailChanged(it)) },
                     onPasswordChange = { viewModel.onEvent(LoginEvent.PasswordChanged(it)) },
                     onTogglePasswordVisibility = { viewModel.onEvent(LoginEvent.TogglePasswordVisibility) },
-                    onForgotPassword = onNavigateToForgotPassword
+                    onForgotPassword = {
+                        viewModel.onEvent(LoginEvent.NavigatingAway)
+                        onNavigateToForgotPassword()
+                    },
+                    onRetry = { viewModel.onEvent(LoginEvent.SubmitLogin) }
                 ) { viewModel.onEvent(LoginEvent.SubmitLogin) }
             }
 
@@ -173,14 +183,25 @@ private fun LoginHeader() {
     val spacing = LocalSpacing.current
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        OneAppLogo()
+        ElevatedCard(
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        ) {
+            Box(modifier = Modifier.padding(spacing.md)) {
+                OneAppLogo()
+            }
+        }
 
         Spacer(modifier = Modifier.height(spacing.xxl))
 
         Text(
             text = "Welcome back",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(spacing.sm))
@@ -199,10 +220,12 @@ private fun LoginFormCard(
     password: String,
     isPasswordVisible: Boolean,
     isLoading: Boolean,
+    error: LoginError?,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onTogglePasswordVisibility: () -> Unit,
     onForgotPassword: () -> Unit,
+    onRetry: () -> Unit,
     onSubmit: () -> Unit
 ) {
     val spacing = LocalSpacing.current
@@ -212,11 +235,11 @@ private fun LoginFormCard(
             .fillMaxWidth()
             // Stops the card stretching to an unreadable width on tablets.
             .widthIn(max = 480.dp),
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
         colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
         ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(spacing.xl),
@@ -256,6 +279,26 @@ private fun LoginFormCard(
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
+                }
+            }
+
+            // Positioned between the last input and the submit button, per spec.
+            // Auth/validation cases render as a single-line inline banner; a traced
+            // backend/permission failure gets the two-line card instead - both share
+            // the same enter/exit rhythm so neither feels like a separate component.
+            ErrorBannerVisibility(visible = error != null) {
+                when (error) {
+                    is LoginError.Network -> InlineErrorBanner(
+                        message = error.message,
+                        onRetry = onRetry
+                    )
+                    is LoginError.Traced -> TracedErrorCard(
+                        headline = error.appError.message,
+                        context = error.appError.context,
+                        onRetry = if (error.isRetryable) onRetry else null
+                    )
+                    null -> Unit
+                    else -> InlineErrorBanner(message = error.message)
                 }
             }
 

@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Call
@@ -33,6 +35,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,7 +52,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.xsc.oneapp.feature.profile.navigation.ProfileDestinations
-import com.xsc.oneapp.feature.profile.ui.components.ProfileContentColumn
+import com.xsc.sdk.commonui.record.ResponsiveContent
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.OneAppMotion
 
@@ -68,12 +71,14 @@ data class ProfileDashlet(
  * bordered block becomes three labelled groups, plus an entrance stagger and press
  * feedback per row.
  *
- * The signature is deliberately not extended with a back callback; adding one would mean
- * editing ProfileNavigation, which is navigation logic rather than presentation.
+ * [onNavigateBack] wires to a leading back arrow next to the title - this screen has no
+ * Scaffold/TopAppBar of its own, so the arrow sits inline in the header row instead of
+ * introducing a new app bar just for this one affordance.
  */
 @Composable
 fun ProfileDashboardScreen(
-    onNavigateTo: (String) -> Unit
+    onNavigateTo: (String) -> Unit,
+    onNavigateBack: () -> Unit
 ) {
     val spacing = LocalSpacing.current
 
@@ -139,14 +144,23 @@ fun ProfileDashboardScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = spacing.screenHorizontal, vertical = spacing.lg)
         ) {
-            Text(
-                text = "Profile",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onNavigateBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Navigate up",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Text(
+                    text = "Profile",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
             Spacer(modifier = Modifier.height(spacing.xl))
 
-            ProfileContentColumn {
+            ResponsiveContent(verticalArrangement = Arrangement.spacedBy(spacing.lg)) {
                 listOf(
                     "Identity" to identity,
                     "People" to people,
@@ -180,11 +194,7 @@ private fun DashletGroup(items: List<ProfileDashlet>, onNavigateTo: (String) -> 
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         items.forEachIndexed { index, dashlet ->
             ProfileDashletRow(dashlet = dashlet) {

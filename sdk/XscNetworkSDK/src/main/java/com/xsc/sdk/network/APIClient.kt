@@ -1,10 +1,13 @@
 package com.xsc.sdk.network
 
 import com.google.gson.Gson
+import com.xsc.sdk.auth.requiredPermissionFor
 import com.xsc.sdk.network.api.DispatchRequest
 import com.xsc.sdk.network.api.errorCodeAsString
 import com.xsc.sdk.network.internal.DispatcherApi
 import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import javax.inject.Inject
 
 /**
@@ -32,14 +35,27 @@ class APIClient @Inject constructor(
 
         val httpResponse = try {
             dispatcherApi.dispatch(envelope)
+        } catch (e: SocketTimeoutException) {
+            throw APIError.NetworkError(e.message ?: "Request timed out", NetworkFailureReason.TIMEOUT)
+        } catch (e: UnknownHostException) {
+            // DNS resolution failed - overwhelmingly means the device itself has no
+            // usable connection, not that this one host is down.
+            throw APIError.NetworkError(e.message ?: "No internet connection", NetworkFailureReason.NO_CONNECTION)
         } catch (e: IOException) {
-            throw APIError.NetworkError(e.message ?: "Unable to reach the server")
+            throw APIError.NetworkError(e.message ?: "Unable to reach the server", NetworkFailureReason.UNREACHABLE)
         }
 
         if (!httpResponse.isSuccessful) {
+            val statusCode = httpResponse.code()
             throw APIError.HttpError(
-                httpResponse.code(),
-                "Server returned HTTP ${httpResponse.code()}"
+                statusCode = statusCode,
+                errorMessage = "Server returned HTTP $statusCode",
+                module = module,
+                submodule = submodule,
+                action = action,
+                actionType = actionType,
+                requiredPermission = requiredPermissionFor(module, submodule, action, actionType),
+                referenceId = if (statusCode >= 500) "ERR-${System.currentTimeMillis()}" else null
             )
         }
 

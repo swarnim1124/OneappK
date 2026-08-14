@@ -10,27 +10,62 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.xsc.oneapp.MainViewModel
+import com.xsc.oneapp.core.result.UiState
+import com.xsc.oneapp.core.result.deniesRoute
 import com.xsc.oneapp.feature.dashboard.ui.screen.DashboardScreen
 import com.xsc.oneapp.feature.login.ui.effect.ForgotPasswordEffect
 import com.xsc.oneapp.feature.login.ui.screen.LoginScreen
 import com.xsc.oneapp.feature.login.ui.screen.ResetPasswordScreen
 import com.xsc.oneapp.feature.login.ui.screen.VerifyOtpScreen
-import com.xsc.sdk.auth.SessionManager
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xsc.oneapp.feature.profile.navigation.profileGraph
-import com.xsc.oneapp.feature.exam.ui.screen.ExamScreen
-import com.xsc.oneapp.feature.exam.ui.screen.HallTicketScreen
+import com.xsc.oneapp.feature.exam.navigation.examGraph
 import com.xsc.oneapp.feature.attendance.navigation.attendanceGraph
 import com.xsc.oneapp.feature.curriculum.ui.screen.CurriculumScreen
 import com.xsc.oneapp.feature.fee.ui.screen.FeeScreen
 import com.xsc.oneapp.feature.timetable.ui.screen.TimetableScreen
 import kotlinx.coroutines.flow.collectLatest
 
+/**
+ * Redirects to [Routes.DASHBOARD] instead of rendering [content] once [accessibleRoutes]
+ * has definitively resolved and [route] isn't in it - mirroring the reactive
+ * session-end redirect below, not inventing a second UX pattern for "you can't be here."
+ *
+ * Deliberately does *not* redirect while [accessibleRoutes] is still [UiState.Loading]
+ * or has failed: the tile a user tapped to get here was already accessible when they
+ * tapped it (the dashboard's tiles come from this same fetch), so a transient fetch
+ * failure or a not-yet-resolved first load must never bounce someone out of a screen
+ * they were already let into. This is UI-only, defense-in-depth-adjacent gating - see
+ * [com.xsc.sdk.auth.SessionManager.hasPermission]'s own doc comment - not a substitute
+ * for the backend enforcement that's still being wired up.
+ */
+@Composable
+private fun GatedDestination(
+    route: String,
+    accessibleRoutes: UiState<Set<String>>,
+    navController: NavHostController,
+    content: @Composable () -> Unit
+) {
+    if (accessibleRoutes.deniesRoute(route)) {
+        LaunchedEffect(route) {
+            navController.navigate(Routes.DASHBOARD) {
+                popUpTo(Routes.DASHBOARD) { inclusive = true }
+            }
+        }
+    } else {
+        content()
+    }
+}
+
 @Composable
 fun RootNavHost(
     navController: NavHostController,
-    sessionManager: SessionManager = hiltViewModel<com.xsc.oneapp.MainViewModel>().sessionManager
+    mainViewModel: MainViewModel = hiltViewModel()
 ) {
+    val sessionManager = mainViewModel.sessionManager
+    val moduleRegistry = mainViewModel.moduleRegistry
+    val accessibleRoutes by mainViewModel.accessibleRoutes.collectAsStateWithLifecycle()
     // Read auth state ONCE to pick the cold-start destination only. NavHost keys its
     // graph off `startDestination` - if this were reactive (collectAsState), flipping
     // isAuthenticated right after login would rebuild the graph and re-enter
@@ -130,7 +165,7 @@ fun RootNavHost(
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 onNavigateToModule = { route ->
-                    navController.navigate(Routes.destinationFor(route))
+                    navController.navigate(Routes.destinationFor(route, moduleRegistry))
                 },
                 // Navigation itself is handled by the reactive isAuthenticated
                 // effect above, once DashboardViewModel.logout()'s
@@ -142,44 +177,49 @@ fun RootNavHost(
             )
         }
 
-        composable(Routes.EXAMS) {
-            ExamScreen(
-                onBack = { navController.popBackStack() },
-                onScheduleClick = { scheduleId -> navController.navigate(Routes.hallTicket(scheduleId)) }
-            )
-        }
-
-        composable(
-            Routes.HALL_TICKET,
-            arguments = listOf(navArgument("scheduleId") { type = NavType.StringType })
-        ) {
-            HallTicketScreen(onBack = { navController.popBackStack() })
-        }
+        // The Exam feature owns its internal destinations (schedules, hall ticket,
+        // results, revaluation, re-exams, malpractice); :app only mounts the graph -
+        // same split as Attendance below. Gating lives inside ExamNavigation.kt itself
+        // (on its start destination only), since :app has no visibility into a
+        // feature-owned graph's own composable() entries.
+        examGraph(navController, accessibleRoutes, fallbackRoute = Routes.DASHBOARD)
 
         // The Attendance feature owns its internal destinations; :app only mounts the
-        // graph. Routes.ATTENDANCE is an alias for its public entry point.
-        attendanceGraph(navController)
+        // graph. Routes.ATTENDANCE is an alias for its public entry point. Gating
+        // lives inside AttendanceNavigation.kt itself (on its start destination
+        // only - internal sub-screens are only reachable from within it, same
+        // precedent as HALL_TICKET above), since :app has no visibility into a
+        // feature-owned graph's own composable() entries.
+        attendanceGraph(navController, accessibleRoutes, fallbackRoute = Routes.DASHBOARD)
 
         composable(Routes.CURRICULUM) {
-            CurriculumScreen(onBack = { navController.popBackStack() })
+            GatedDestination(Routes.CURRICULUM, accessibleRoutes, navController) {
+                CurriculumScreen(onBack = { navController.popBackStack(Routes.DASHBOARD, false) })
+            }
         }
 
         composable(Routes.FEES) {
-            FeeScreen(onBack = { navController.popBackStack() })
+            GatedDestination(Routes.FEES, accessibleRoutes, navController) {
+                FeeScreen(onBack = { navController.popBackStack(Routes.DASHBOARD, false) })
+            }
         }
 
         composable(Routes.TIMETABLE) {
-            TimetableScreen(onBack = { navController.popBackStack() })
+            GatedDestination(Routes.TIMETABLE, accessibleRoutes, navController) {
+                TimetableScreen(onBack = { navController.popBackStack(Routes.DASHBOARD, false) })
+            }
         }
 
         composable(Routes.MODULE_PATTERN) { backStackEntry ->
             val moduleName = backStackEntry.arguments?.getString("moduleName") ?: "Unknown"
-            com.xsc.oneapp.feature.dashboard.ui.screen.DummyModuleScreen(
-                moduleName = moduleName,
-                onBack = { navController.popBackStack() }
-            )
+            GatedDestination(Routes.module(moduleName), accessibleRoutes, navController) {
+                com.xsc.oneapp.feature.dashboard.ui.screen.DummyModuleScreen(
+                    moduleName = moduleName,
+                    onBack = { navController.popBackStack(Routes.DASHBOARD, false) }
+                )
+            }
         }
-        
-        profileGraph(navController)
+
+        profileGraph(navController, accessibleRoutes, fallbackRoute = Routes.DASHBOARD)
     }
 }

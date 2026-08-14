@@ -15,7 +15,7 @@ class LoginUseCaseTest {
     fun `invoke delegates the payload to the repository unchanged`() = runTest {
         val repository = mockk<LoginRepository>()
         val payload = mapOf("username" to "student@oneapp.local", "password" to "Student@123")
-        val expected = LoginResult(token = "access", refreshToken = "refresh", captchaRequired = false)
+        val expected = LoginResult(token = "access", refreshToken = "refresh")
         coEvery { repository.login(payload) } returns expected
 
         val result = LoginUseCase(repository).invoke(payload)

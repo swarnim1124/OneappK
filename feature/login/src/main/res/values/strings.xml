@@ -8,7 +8,6 @@
     <string name="forgot_password">Forgot Password?</string>
     <string name="sign_in">Sign In</string>
     <string name="verification_code_title">Verification Code</string>
-    <string name="refresh_captcha">Refresh CAPTCHA</string>
     <string name="verification_code_hint">Enter verification code</string>
     <string name="terms_and_privacy">By continuing you agree to our\nTerms &amp; Privacy Policy</string>
     <string name="email_password_required">Please enter email and password</string>

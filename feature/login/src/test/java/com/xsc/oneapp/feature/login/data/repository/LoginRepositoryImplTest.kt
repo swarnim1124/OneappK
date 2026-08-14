@@ -3,12 +3,15 @@ package com.xsc.oneapp.feature.login.data.repository
 import com.google.gson.Gson
 import com.google.gson.JsonParser
 import com.xsc.sdk.network.APIError
+import com.xsc.sdk.network.NetworkFailureReason
 import com.xsc.sdk.network.api.ApiClient
 import com.xsc.sdk.network.api.DispatchRequest
 import com.xsc.sdk.network.api.DispatchResponse
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -109,6 +112,30 @@ class LoginRepositoryImplTest {
         assertEquals("auth", requestSlot.captured.subMod)
         assertEquals("passwordReset", requestSlot.captured.action)
         assertEquals("view", requestSlot.captured.actionType)
+    }
+
+    @Test
+    fun `a socket timeout is mapped to a NetworkError with TIMEOUT reason`() {
+        val apiClient = mockk<ApiClient>()
+        coEvery { apiClient.dispatch(any()) } throws SocketTimeoutException("timeout")
+
+        val exception = assertThrows(APIError.NetworkError::class.java) {
+            runBlocking { LoginRepositoryImpl(apiClient, gson).login(emptyMap()) }
+        }
+
+        assertEquals(NetworkFailureReason.TIMEOUT, exception.reason)
+    }
+
+    @Test
+    fun `an unresolvable host is mapped to a NetworkError with NO_CONNECTION reason`() {
+        val apiClient = mockk<ApiClient>()
+        coEvery { apiClient.dispatch(any()) } throws UnknownHostException("no host")
+
+        val exception = assertThrows(APIError.NetworkError::class.java) {
+            runBlocking { LoginRepositoryImpl(apiClient, gson).login(emptyMap()) }
+        }
+
+        assertEquals(NetworkFailureReason.NO_CONNECTION, exception.reason)
     }
 
     @Test

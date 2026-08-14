@@ -6,21 +6,11 @@ import com.google.firebase.crashlytics.FirebaseCrashlytics
  * Thin wrapper around Crashlytics so call sites (see [com.xsc.oneapp.core.result.uiStateCatching])
  * never need to know whether Firebase is actually initialized.
  *
- * NOT FULLY ENABLED YET. `app/google-services.json` registers package
- * `swarnim.oneapp.com`, but this app's applicationId is `com.xsc.oneapp` - applying
- * the google-services/crashlytics Gradle plugins with that mismatch fails the build
- * outright (see app/build.gradle.kts, and PRODUCTION_READINESS_AUDIT.md C-1/H-8:
- * "you will be blind the moment R8 lands"). Both plugins stay commented out until the
- * Firebase console registers the right package and a corrected `google-services.json`
- * replaces the current one.
- *
- * The dependency itself doesn't need that fix to compile - only `FirebaseApp`'s
- * runtime auto-init does, since it reads the plugin-generated config resources. Until
- * then, [FirebaseCrashlytics.getInstance] throws `IllegalStateException` the first
- * time anything touches it; [isAvailable] catches that once at [init] and every other
- * method here becomes a no-op instead of every call site needing its own try/catch.
- * The moment the two plugins are uncommented and a valid config ships, this starts
- * reporting with zero further code changes.
+ * `app/google-services.json` now registers the real package (`com.xsc.oneapp`) against
+ * a real Firebase project, so this reports for real - the wrapper stays defensive
+ * anyway (see [isAvailable]) since a gitignored, locally-supplied config file is the
+ * kind of thing a fresh checkout can still be missing, and crash reporting must never
+ * be the thing that crashes the app.
  */
 object CrashReporter {
     @Volatile

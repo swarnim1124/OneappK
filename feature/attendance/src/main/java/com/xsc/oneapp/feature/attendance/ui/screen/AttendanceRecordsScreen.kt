@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -19,13 +20,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.attendance.domain.model.AttendanceRecord
 import com.xsc.oneapp.feature.attendance.domain.model.AttendanceSession
+import com.xsc.oneapp.feature.attendance.domain.model.AttendanceType
+import com.xsc.oneapp.core.result.UiState
 import com.xsc.oneapp.feature.attendance.ui.components.AttendanceCard
 import com.xsc.oneapp.feature.attendance.ui.components.AttendanceListRow
-import com.xsc.oneapp.feature.attendance.ui.components.AttendanceScaffold
-import com.xsc.oneapp.feature.attendance.ui.components.DetailText
-import com.xsc.oneapp.feature.attendance.ui.components.SectionChips
 import com.xsc.oneapp.feature.attendance.ui.components.SectionList
 import com.xsc.oneapp.feature.attendance.ui.components.StatusPill
+import com.xsc.sdk.commonui.record.DetailText
+import com.xsc.sdk.commonui.record.RecordScaffold
+import com.xsc.sdk.commonui.record.SectionChips
 import com.xsc.oneapp.feature.attendance.ui.viewmodel.AttendanceViewModel
 import com.xsc.sdk.theme.OneAppSuccess
 import com.xsc.sdk.theme.OneAppWarning
@@ -52,10 +55,14 @@ fun AttendanceRecordsScreen(
     val sessionsState by viewModel.sessions.state.collectAsStateWithLifecycle()
     val submissionsState by viewModel.submissions.state.collectAsStateWithLifecycle()
     val recordsState by viewModel.records.state.collectAsStateWithLifecycle()
+    val typesState by viewModel.types.state.collectAsStateWithLifecycle()
+    val typesById = remember(typesState) {
+        (typesState as? UiState.Success)?.data?.associateBy { it.id } ?: emptyMap()
+    }
 
     LaunchedEffect(Unit) { viewModel.loadRecords() }
 
-    AttendanceScaffold(title = "Records", onBack = onBack) { padding ->
+    RecordScaffold(title = "Records", onBack = onBack) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,7 +90,7 @@ fun AttendanceRecordsScreen(
                     emptyMessage = "No individual attendance markings recorded yet.",
                     onRetry = viewModel.records::reload,
                     key = { it.id ?: it.hashCode() }
-                ) { RecordRow(it) }
+                ) { RecordRow(it, typesById) }
             }
         }
     }
@@ -137,18 +144,31 @@ private fun SubmissionRow(submission: AttendanceSession) {
     }
 }
 
+/**
+ * [typesById] resolves attendanceStatusId to a real label (Present/Absent/Excused/...)
+ * instead of a raw number - AttendanceType is sch_lookup.tb_lookup cat_id=70, "the
+ * institution's custom attendance marking codes" per its own doc comment, which is
+ * exactly what attendanceStatusId is a foreign key into. Falls back to the raw id only
+ * if the type list hasn't loaded or doesn't contain it, same fail-open-while-unresolved
+ * shape used elsewhere in this app.
+ *
+ * Also drops the previous "Student $studentId" line - this screen only ever shows the
+ * signed-in student's own records, so naming them by id was both meaningless (a raw
+ * number, not a resolved name) and redundant (they already know whose record this is).
+ */
 @Composable
-private fun RecordRow(record: AttendanceRecord) {
-    val status = record.attendanceStatusId
+private fun RecordRow(record: AttendanceRecord, typesById: Map<String?, AttendanceType>) {
+    val statusLabel = record.attendanceStatusId?.let { id ->
+        typesById[id]?.lookupName ?: "Status $id"
+    }
     val remarks = record.remarks
 
     AttendanceCard {
         AttendanceListRow(
             icon = Icons.AutoMirrored.Filled.Assignment,
-            title = "Student ${record.studentId ?: "—"}",
-            subtitle = record.markedAt,
-            trailing = if (status != null) {
-                { StatusPill("Status $status", tint = MaterialTheme.colorScheme.primary) }
+            title = record.markedAt ?: "Marking",
+            trailing = if (statusLabel != null) {
+                { StatusPill(statusLabel, tint = MaterialTheme.colorScheme.primary) }
             } else null
         )
         if (remarks != null) {

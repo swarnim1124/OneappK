@@ -46,14 +46,14 @@ class TimetableViewModel @Inject constructor(
     getTimetableApprovalsUseCase: GetTimetableApprovalsUseCase
 ) : ViewModel() {
 
-    private val entries = SectionLoader(viewModelScope) { getTimetableEntriesUseCase() }
-    private val workingDays = SectionLoader(viewModelScope) { getWorkingDaysUseCase() }
-    private val timeSlots = SectionLoader(viewModelScope) { getTimeSlotsUseCase() }
-    private val academicCalendar = SectionLoader(viewModelScope) { getAcademicCalendarUseCase() }
-    private val facultyAllocations = SectionLoader(viewModelScope) { getFacultyAllocationsUseCase() }
-    private val roomAllocations = SectionLoader(viewModelScope) { getRoomAllocationsUseCase() }
-    private val substitutions = SectionLoader(viewModelScope) { getSubstitutionsUseCase() }
-    private val approvals = SectionLoader(viewModelScope) { getTimetableApprovalsUseCase() }
+    private val entries = SectionLoader(viewModelScope, "timetable") { getTimetableEntriesUseCase() }
+    private val workingDays = SectionLoader(viewModelScope, "working days") { getWorkingDaysUseCase() }
+    private val timeSlots = SectionLoader(viewModelScope, "time slots") { getTimeSlotsUseCase() }
+    private val academicCalendar = SectionLoader(viewModelScope, "academic calendar") { getAcademicCalendarUseCase() }
+    private val facultyAllocations = SectionLoader(viewModelScope, "faculty allocations") { getFacultyAllocationsUseCase() }
+    private val roomAllocations = SectionLoader(viewModelScope, "room allocations") { getRoomAllocationsUseCase() }
+    private val substitutions = SectionLoader(viewModelScope, "substitutions") { getSubstitutionsUseCase() }
+    private val approvals = SectionLoader(viewModelScope, "timetable approvals") { getTimetableApprovalsUseCase() }
 
     val entriesState: StateFlow<UiState<List<TimetableEntry>>> = entries.state
     val workingDaysState: StateFlow<UiState<List<WorkingDay>>> = workingDays.state

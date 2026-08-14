@@ -2,6 +2,7 @@ package com.xsc.oneapp.feature.profile.ui.viewmodel
 
 import com.xsc.oneapp.feature.profile.domain.model.FamilyDetail
 import com.xsc.oneapp.feature.profile.domain.model.PersonalDetail
+import com.xsc.oneapp.feature.profile.domain.usecase.AddFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.DeleteFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetFamilyDetailUseCase
 import com.xsc.oneapp.feature.profile.domain.usecase.GetPersonalDetailUseCase
@@ -29,14 +30,17 @@ import org.junit.Test
 class FamilyDetailViewModelTest {
 
     private lateinit var getFamilyDetailUseCase: GetFamilyDetailUseCase
+    private lateinit var addFamilyDetailUseCase: AddFamilyDetailUseCase
     private lateinit var updateFamilyDetailUseCase: UpdateFamilyDetailUseCase
     private lateinit var deleteFamilyDetailUseCase: DeleteFamilyDetailUseCase
     private lateinit var getPersonalDetailUseCase: GetPersonalDetailUseCase
 
     private val familyDetail = FamilyDetail(
-        id = 1, firstName = "Parent", middleName = "", lastName = "One", genderId = null, dob = null,
-        mobileNo = "9999999999", email = "parent@oneapp.local", occupation = "Engineer", annualIncome = 0.0,
-        photoDocId = null, statusId = 1, relationshipTypeId = 1, isPrimaryGuardian = true, isEmergencyContact = true
+        id = 1, firstName = "Parent", middleName = "", lastName = "One", genderId = null,
+        genderName = "", dob = null, mobileNo = "9999999999", email = "parent@oneapp.local",
+        occupation = "Engineer", annualIncome = 0.0, photoDocId = null, statusId = 1,
+        statusName = "Active", relationshipTypeId = 1, relationshipTypeName = "Father",
+        isPrimaryGuardian = true, isEmergencyContact = true
     )
 
     /** userId ("3") deliberately differs from studentId ("77") - proves the
@@ -45,14 +49,16 @@ class FamilyDetailViewModelTest {
     private fun personalDetail(studentId: String?) = PersonalDetail(
         userId = "3", studentId = studentId, email = "student@oneapp.local", alternateEmail = "", mobile = "9999999999",
         firstName = "Student", middleName = "", lastName = "One", dob = "2000-01-01", genderId = 1,
-        photoDocId = null, nationalityId = null, primaryLangId = null, bloodGroupId = null,
-        createdAt = "2026-01-01", updatedAt = "2026-01-01"
+        gender = "Male", photoDocId = null, nationalityId = null, nationality = "", primaryLangId = null,
+        primaryLanguage = "", maritalStatusId = null, maritalStatus = "", bloodGroupId = null,
+        bloodGroup = "", createdAt = "2026-01-01", updatedAt = "2026-01-01", addresses = emptyList()
     )
 
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         getFamilyDetailUseCase = mockk()
+        addFamilyDetailUseCase = mockk()
         updateFamilyDetailUseCase = mockk()
         deleteFamilyDetailUseCase = mockk()
         getPersonalDetailUseCase = mockk()
@@ -66,6 +72,7 @@ class FamilyDetailViewModelTest {
 
     private fun viewModel() = FamilyDetailViewModel(
         getFamilyDetailUseCase,
+        addFamilyDetailUseCase,
         updateFamilyDetailUseCase,
         deleteFamilyDetailUseCase,
         getPersonalDetailUseCase
@@ -111,6 +118,29 @@ class FamilyDetailViewModelTest {
         vm.onEvent(FamilyDetailEvent.SaveFamilyDetail(1, mapOf("occupation" to "Doctor")))
 
         assertTrue(vm.state.value is FamilyDetailState.Success)
+    }
+
+    @Test
+    fun `adding includes the resolved studentId alongside the entered fields`() = runTest {
+        coEvery { getFamilyDetailUseCase("77") } returns listOf(familyDetail)
+        coEvery {
+            addFamilyDetailUseCase(mapOf("name" to "New Parent", "studentId" to "77"))
+        } just Runs
+        val vm = viewModel()
+
+        vm.onEvent(FamilyDetailEvent.AddFamilyDetail(mapOf("name" to "New Parent")))
+
+        assertTrue(vm.state.value is FamilyDetailState.Success)
+    }
+
+    @Test
+    fun `adding without a resolvable studentId surfaces a BusinessError instead of calling the use case`() = runTest {
+        coEvery { getPersonalDetailUseCase() } returns personalDetail(studentId = null)
+        val vm = viewModel()
+
+        vm.onEvent(FamilyDetailEvent.AddFamilyDetail(mapOf("name" to "New Parent")))
+
+        assertTrue(vm.state.value is FamilyDetailState.BusinessError)
     }
 
     @Test

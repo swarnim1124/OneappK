@@ -7,21 +7,20 @@ import androidx.compose.ui.unit.dp
 /**
  * The app's corner scale.
  *
- * [OneAppTheme] passed no shapes before, so components used Material's defaults while
- * screens hardcoded their own - 14dp on buttons, 16dp on attendance cards, 20dp on the
- * dummy module tile, 24dp on the login card. Those are all "rounded", but the
- * inconsistency is visible when two of them sit on one screen.
- *
- * Slightly softer than Material's baseline at the medium and large steps, which is what
- * gives cards a premium rather than utilitarian feel, while keeping small controls
- * tight enough to read as controls.
+ * Matches the Academic Interface System design system's rounded scale (Stitch export,
+ * 2026-08): sm=4dp, DEFAULT=8dp (buttons/inputs, per the design system's own docs),
+ * md=12dp, lg=16dp (cards, per the design system's own docs), xl=24dp. `medium` below
+ * is deliberately the design system's `lg`(16dp), not `md`(12dp) - verified against
+ * XscCommonUI's RecordCard, the shared card component every feature module's list
+ * screens build on, which reads `MaterialTheme.shapes.medium` directly, so this is
+ * what actually determines real card corner radii app-wide, not just a label choice.
  */
 val OneAppShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(24.dp)
 )
 
 /** Fully rounded - status pills, avatars, icon buttons. */

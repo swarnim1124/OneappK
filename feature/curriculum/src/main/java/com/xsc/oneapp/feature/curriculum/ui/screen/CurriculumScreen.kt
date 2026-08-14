@@ -4,29 +4,39 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.xsc.oneapp.core.result.AppError
 import com.xsc.oneapp.core.result.UiState
 import com.xsc.oneapp.feature.curriculum.domain.model.Course
 import com.xsc.oneapp.feature.curriculum.domain.model.Programme
 import com.xsc.oneapp.feature.curriculum.domain.model.Syllabus
 import com.xsc.oneapp.feature.curriculum.ui.viewmodel.CurriculumViewModel
-import com.xsc.sdk.commonui.record.DetailText
 import com.xsc.sdk.commonui.record.EmptyState
 import com.xsc.sdk.commonui.record.ErrorState
 import com.xsc.sdk.commonui.record.LoadingState
@@ -36,6 +46,7 @@ import com.xsc.sdk.commonui.record.RecordScaffold
 import com.xsc.sdk.commonui.record.ResponsiveContent
 import com.xsc.sdk.commonui.record.SectionChips
 import com.xsc.sdk.commonui.record.StatusPill
+import com.xsc.sdk.commonui.record.TintedChip
 import com.xsc.sdk.theme.LocalSpacing
 
 private val TAB_TITLES = listOf("Programmes", "Courses", "Syllabus")
@@ -47,6 +58,15 @@ private val TAB_TITLES = listOf("Programmes", "Courses", "Syllabus")
  * called from any screen, so the course catalog and syllabus entries were unreachable in
  * the app. See CurriculumViewModel for why the sections aren't nested (no confirmed
  * Programme<->Course/Syllabus join key from the backend contract).
+ *
+ * Card styling matches the design system's "code badge + divider row" language, applied
+ * to these three real tabs rather than the design system's "My Curriculum" concept - a
+ * personalised current-programme hero with term/credit progress plus an "Enrolled
+ * Courses" list. That needs student-enrollment data ("which term am I in," "which
+ * courses am I enrolled in this term") that doesn't exist anywhere in this module's
+ * domain layer - sm_enrollment has no data-layer support at all (see CurriculumEndpoint's
+ * doc comment). Inventing progress numbers or an enrolled-course list would mean showing
+ * fabricated data, not a restyle.
  */
 @Composable
 fun CurriculumScreen(
@@ -90,7 +110,11 @@ private fun ProgrammesTab(state: UiState<List<Programme>>, onRetry: () -> Unit) 
         }
         is UiState.BusinessError -> ErrorState(state.message, onRetry)
         is UiState.NetworkError -> ErrorState(state.message, onRetry)
-        is UiState.UnexpectedError -> ErrorState(state.message, onRetry)
+        is UiState.UnexpectedError -> ErrorState(
+            state.message,
+            onRetry,
+            context = (state.appError as? AppError.Traced)?.context
+        )
     }
 }
 
@@ -109,10 +133,12 @@ private fun ProgrammeList(programmes: List<Programme>) {
         items(programmes, key = { it.code ?: it.hashCode() }) { programme ->
             ResponsiveContent {
                 RecordCard {
-                    RecordRow(
-                        icon = Icons.Default.School,
-                        title = programme.name,
-                        trailing = programme.code?.let { code -> { StatusPill(code) } }
+                    programme.code?.let { code -> TintedChip(code.uppercase()) }
+                    Text(
+                        programme.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = spacing.sm)
                     )
 
                     val summary = listOfNotNull(
@@ -121,7 +147,26 @@ private fun ProgrammeList(programmes: List<Programme>) {
                     ).joinToString(" · ")
 
                     if (summary.isNotBlank()) {
-                        DetailText(summary, modifier = Modifier.padding(top = spacing.md))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = spacing.sm, bottom = spacing.xs),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+                        ) {
+                            Icon(
+                                Icons.Default.School,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                summary,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -140,7 +185,11 @@ private fun CoursesTab(state: UiState<List<Course>>, onRetry: () -> Unit) {
         }
         is UiState.BusinessError -> ErrorState(state.message, onRetry)
         is UiState.NetworkError -> ErrorState(state.message, onRetry)
-        is UiState.UnexpectedError -> ErrorState(state.message, onRetry)
+        is UiState.UnexpectedError -> ErrorState(
+            state.message,
+            onRetry,
+            context = (state.appError as? AppError.Traced)?.context
+        )
     }
 }
 
@@ -156,10 +205,12 @@ private fun CourseList(courses: List<Course>) {
         items(courses, key = { it.id ?: it.code ?: it.hashCode() }) { course ->
             ResponsiveContent {
                 RecordCard {
-                    RecordRow(
-                        icon = Icons.Default.Book,
-                        title = course.name ?: "Course",
-                        trailing = course.code?.let { code -> { StatusPill(code) } }
+                    course.code?.let { code -> TintedChip(code.uppercase()) }
+                    Text(
+                        course.name ?: "Course",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = spacing.sm)
                     )
 
                     val summary = listOfNotNull(
@@ -170,7 +221,26 @@ private fun CourseList(courses: List<Course>) {
                     ).joinToString(" · ")
 
                     if (summary.isNotBlank()) {
-                        DetailText(summary, modifier = Modifier.padding(top = spacing.md))
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = spacing.sm, bottom = spacing.xs),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(spacing.xs)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.LibraryBooks,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                summary,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -189,7 +259,11 @@ private fun SyllabusTab(state: UiState<List<Syllabus>>, onRetry: () -> Unit) {
         }
         is UiState.BusinessError -> ErrorState(state.message, onRetry)
         is UiState.NetworkError -> ErrorState(state.message, onRetry)
-        is UiState.UnexpectedError -> ErrorState(state.message, onRetry)
+        is UiState.UnexpectedError -> ErrorState(
+            state.message,
+            onRetry,
+            context = (state.appError as? AppError.Traced)?.context
+        )
     }
 }
 

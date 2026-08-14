@@ -60,14 +60,14 @@ class AttendanceViewModel @Inject constructor(
     getCondonations: GetCondonationsUseCase
 ) : ViewModel() {
 
-    val shortage = SectionLoader(viewModelScope) { getAttendanceShortage() }
-    val sessions = SectionLoader(viewModelScope) { getAttendanceSessions() }
-    val submissions = SectionLoader(viewModelScope) { getSubmissionComplianceReport() }
-    val records = SectionLoader(viewModelScope) { getAttendanceRecords() }
-    val exceptions = SectionLoader(viewModelScope) { getAttendanceExceptions() }
-    val condonations = SectionLoader(viewModelScope) { getCondonations() }
-    val configurations = SectionLoader(viewModelScope) { getAttendanceConfigurations() }
-    val types = SectionLoader(viewModelScope) { getAttendanceTypes() }
+    val shortage = SectionLoader(viewModelScope, "attendance shortage") { getAttendanceShortage() }
+    val sessions = SectionLoader(viewModelScope, "attendance sessions") { getAttendanceSessions() }
+    val submissions = SectionLoader(viewModelScope, "submission compliance report") { getSubmissionComplianceReport() }
+    val records = SectionLoader(viewModelScope, "attendance records") { getAttendanceRecords() }
+    val exceptions = SectionLoader(viewModelScope, "attendance exceptions") { getAttendanceExceptions() }
+    val condonations = SectionLoader(viewModelScope, "condonations") { getCondonations() }
+    val configurations = SectionLoader(viewModelScope, "attendance policy") { getAttendanceConfigurations() }
+    val types = SectionLoader(viewModelScope, "attendance marking types") { getAttendanceTypes() }
 
     /**
      * Eagerly shared so the value is settled the moment the overview composes, and so
@@ -114,11 +114,18 @@ class AttendanceViewModel @Inject constructor(
         sessions.loadOnce()
         submissions.loadOnce()
         records.loadOnce()
+        // Markings need this to resolve attendanceStatusId to a real label instead of
+        // a raw number - see AttendanceRecordsScreen's RecordRow. loadOnce() is
+        // idempotent, so this doesn't duplicate Policy's own fetch of the same data.
+        types.loadOnce()
     }
 
     fun loadRequests() {
         exceptions.loadOnce()
         condonations.loadOnce()
+        // The correction request form needs a session to attach the request to -
+        // loadOnce() is idempotent, so this doesn't duplicate Records' own fetch.
+        sessions.loadOnce()
     }
 
     fun loadPolicy() {

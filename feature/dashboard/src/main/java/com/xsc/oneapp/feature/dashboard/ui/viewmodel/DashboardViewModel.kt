@@ -12,6 +12,7 @@ import com.xsc.oneapp.feature.dashboard.domain.usecase.GetPinnedModuleIdsUseCase
 import com.xsc.oneapp.feature.dashboard.domain.usecase.TogglePinnedModuleUseCase
 import com.xsc.sdk.auth.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,9 +57,10 @@ class DashboardViewModel @Inject constructor(
     private fun loadSessionData() {
         _state.update {
             it.copy(
-                // We use mock names if not present in session yet
                 userName = sessionManager.getDisplayName(),
-                userEmail = sessionManager.currentEmail.value ?: "jane.doe@university.edu",
+                // Falls back to a placeholder only if neither the JWT nor the login
+                // response's user.email supplied one - see SessionManager.getEmail.
+                userEmail = sessionManager.getEmail() ?: "jane.doe@university.edu",
                 userRole = sessionManager.currentRole.value ?: "Student"
             )
         }
@@ -134,15 +136,31 @@ class DashboardViewModel @Inject constructor(
     /** Overlays any stat a business module actually has live data for (via
      * DashboardStatProvider) onto the placeholder list, matched by stat id. A stat
      * id with no registered provider - or whose provider returns null - keeps its
-     * placeholder value untouched. */
+     * placeholder value untouched.
+     *
+     * Each provider is called through [safeProvideStat] rather than directly: this
+     * runs inside init{}'s viewModelScope.launch with no exception handler, so one
+     * provider throwing (a dispatcher call failing, say) used to crash the whole
+     * Dashboard immediately after login instead of just leaving that one card on its
+     * placeholder - see AttendanceDashboardStatProvider/FeeDashboardStatProvider,
+     * which now guard themselves too. This is the same protection kept centrally, so
+     * a future provider that forgets to guard itself can't reintroduce the crash. */
     private suspend fun mergeLiveStats(placeholders: List<DashboardStat>): List<DashboardStat> {
         val liveById = statProviders
-            .mapNotNull { provider -> provider.provideStat()?.let { it.id to it } }
+            .mapNotNull { provider -> safeProvideStat(provider)?.let { it.id to it } }
             .toMap()
         return placeholders.map { placeholder ->
             val live = liveById[placeholder.id] ?: return@map placeholder
             placeholder.copy(value = live.value, tag = live.tag, title = live.title)
         }
+    }
+
+    private suspend fun safeProvideStat(provider: DashboardStatProvider) = try {
+        provider.provideStat()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private fun getMockStats(): List<DashboardStat> {
