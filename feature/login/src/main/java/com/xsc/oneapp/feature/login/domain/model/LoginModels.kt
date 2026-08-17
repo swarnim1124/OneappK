@@ -4,6 +4,8 @@ data class LoginResult(
     val token: String?,
     val refreshToken: String? = null,
     val captchaRequired: Boolean,
+    val mfaRequired: Boolean = false,
+    val challengeToken: String? = null,
     val institutionId: Int? = null
 )
 

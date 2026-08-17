@@ -1,2 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Razorpay Checkout reads the SIM/network operator to preselect a UPI app and to
+         decide which wallets to offer; both are normal permissions. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application>
+        <!-- Transparent host for Razorpay Checkout - see RazorpayCheckoutActivity.
+             Not exported: it is only ever started from within this app.
+             `android:theme` is translucent so the Fees screen stays visible behind the
+             payment sheet instead of a blank activity flashing first. -->
+        <activity
+            android:name=".payment.RazorpayCheckoutActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.OneApp.Transparent" />
+    </application>
+
+</manifest>

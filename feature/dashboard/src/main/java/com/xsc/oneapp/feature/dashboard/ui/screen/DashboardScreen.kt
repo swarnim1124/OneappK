@@ -12,7 +12,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,12 +21,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -38,9 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonOutline
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -61,16 +52,17 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.feature.dashboard.domain.model.DashboardTab
+import com.xsc.oneapp.feature.dashboard.ui.components.ActionsFeedSection
 import com.xsc.oneapp.feature.dashboard.ui.components.BottomTabBar
-import com.xsc.oneapp.feature.dashboard.ui.components.DashboardPlaceholder
 import com.xsc.oneapp.feature.dashboard.ui.components.DashboardTopBar
-import com.xsc.oneapp.feature.dashboard.ui.components.ModuleCardView
+import com.xsc.oneapp.feature.dashboard.ui.components.DayAtGlanceSection
+import com.xsc.oneapp.feature.dashboard.ui.components.ModulesTab
+import com.xsc.oneapp.feature.dashboard.ui.components.NotificationsList
 import com.xsc.oneapp.feature.dashboard.ui.components.PinModulesDialog
-import com.xsc.oneapp.feature.dashboard.ui.components.PinnedInfoSection
-import com.xsc.oneapp.feature.dashboard.ui.components.QuickActionRow
 import com.xsc.oneapp.feature.dashboard.ui.components.SectionHeader
 import com.xsc.oneapp.feature.dashboard.ui.components.SidebarView
-import com.xsc.oneapp.feature.dashboard.ui.components.StatCardView
+import com.xsc.oneapp.feature.dashboard.ui.components.TodayTimelineCard
+import com.xsc.oneapp.feature.dashboard.ui.components.WorkspaceCard
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardState
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardViewModel
 import com.xsc.sdk.theme.LocalDarkTheme
@@ -84,6 +76,11 @@ import com.xsc.sdk.theme.OneAppMotion
  * Presentation only. Every ViewModel call, tab value, navigation callback and dialog
  * trigger is unchanged from the previous version - the differences are spacing, the type
  * scale, elevation hierarchy and motion.
+ *
+ * Home, the Pin Modules dialog and Notifications were rebuilt against the Stitch
+ * redesign (see DashboardViewModel / HomeGlanceComponents.kt / NotificationsComponents.kt
+ * for what's real vs. temporary). Curriculum and Profile are unchanged pending their
+ * own Stitch screens.
  */
 @Composable
 fun DashboardScreen(
@@ -106,9 +103,7 @@ fun DashboardScreen(
                 onMenuTap = { viewModel.toggleSidebar() },
                 unreadCount = state.unreadNotifications,
                 onNotificationTap = { viewModel.setTab(DashboardTab.NOTIFICATIONS) },
-                onProfileTap = { viewModel.setTab(DashboardTab.PROFILE) },
-                isDarkMode = isDarkMode,
-                onThemeToggle = { toggleTheme() }
+                onProfileTap = { viewModel.setTab(DashboardTab.PROFILE) }
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -119,10 +114,16 @@ fun DashboardScreen(
                         roleSubtitle = viewModel.getRoleSubtitle(),
                         onNavigateToModule = onNavigateToModule,
                         onOpenPinPicker = { viewModel.openPinPicker() },
-                        onUnpinModule = { viewModel.togglePinnedModule(it) }
+                        onSelectTab = { viewModel.setTab(it) }
                     )
-                    DashboardTab.CURRICULUM -> CurriculumTab()
-                    DashboardTab.NOTIFICATIONS -> NotificationsTab()
+                    DashboardTab.CURRICULUM -> ModulesTab(
+                        state = state,
+                        onNavigateToModule = onNavigateToModule
+                    )
+                    DashboardTab.NOTIFICATIONS -> NotificationsTab(
+                        state = state,
+                        onMarkAllRead = { viewModel.markAllNotificationsRead() }
+                    )
                     DashboardTab.PROFILE -> ProfileTab(
                         state = state,
                         onSignOut = {
@@ -166,7 +167,9 @@ fun DashboardScreen(
                 onLogout = {
                     viewModel.logout()
                     onLogout()
-                }
+                },
+                isDarkMode = isDarkMode,
+                onThemeToggle = { toggleTheme() }
             )
         }
 
@@ -174,6 +177,7 @@ fun DashboardScreen(
             PinModulesDialog(
                 allModules = state.modules,
                 pinnedIds = state.pinnedModuleIds,
+                atPinLimit = state.pinnedLimitReached,
                 onToggle = { viewModel.togglePinnedModule(it) },
                 onDismiss = { viewModel.closePinPicker() }
             )
@@ -188,98 +192,72 @@ private fun HomeTab(
     roleSubtitle: String,
     onNavigateToModule: (String) -> Unit,
     onOpenPinPicker: () -> Unit,
-    onUnpinModule: (String) -> Unit
+    onSelectTab: (DashboardTab) -> Unit
 ) {
     val spacing = LocalSpacing.current
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 104.dp),
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = spacing.screenHorizontal,
-            end = spacing.screenHorizontal,
-            top = spacing.sm,
-            bottom = spacing.xxl
-        ),
-        horizontalArrangement = Arrangement.spacedBy(spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.md)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = spacing.screenHorizontal,
+                end = spacing.screenHorizontal,
+                top = spacing.sm,
+                bottom = spacing.xxl
+            ),
+        verticalArrangement = Arrangement.spacedBy(spacing.xl)
     ) {
-        // Adaptive columns rather than a hard Fixed(3): three tiles is right on a
-        // phone and cramped on a tablet where five fit comfortably. Full-width rows use
-        // `maxLineSpan`, which is only in scope inside the span lambda itself.
-        item(key = "greeting", span = { GridItemSpan(maxLineSpan) }) {
-            Column(modifier = Modifier.padding(vertical = spacing.sm)) {
-                Text(
-                    text = "$greeting, ${state.userName}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(spacing.xs))
-                Text(
-                    text = roleSubtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        item(key = "pinned", span = { GridItemSpan(maxLineSpan) }) {
-            PinnedInfoSection(
-                pinnedModules = state.modules.filter { it.id in state.pinnedModuleIds },
-                onManageClick = onOpenPinPicker,
-                onModuleClick = { onNavigateToModule(it.route) },
-                onUnpin = onUnpinModule
+        Column(modifier = Modifier.padding(vertical = spacing.sm)) {
+            Text(
+                text = "$greeting, ${state.userFirstName}",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(spacing.xs))
+            Text(
+                text = roleSubtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        item(key = "overview-header", span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader(title = "Overview")
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+            SectionHeader(title = "Day at a Glance")
+            DayAtGlanceSection(stats = state.stats)
+            TodayTimelineCard()
         }
 
-        item(key = "stats", span = { GridItemSpan(maxLineSpan) }) {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
-                items(state.stats, key = { it.id }) { stat -> StatCardView(stat = stat) }
-            }
+        val feesStat = state.stats.firstOrNull { it.id == "fees" }
+
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+            SectionHeader(title = "Your Workspace", trailing = "Edit", onTrailingClick = onOpenPinPicker)
+            WorkspaceCard(
+                modules = state.modules,
+                pinnedIds = state.pinnedModuleIds,
+                hasFeesAlert = feesStat?.tag == "Due now",
+                onModuleClick = { onNavigateToModule(it.route) },
+                onMoreClick = { onSelectTab(DashboardTab.CURRICULUM) }
+            )
         }
 
-        item(key = "modules-header", span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader(title = "Your modules")
-        }
-
-        items(state.modules, key = { it.id }) { module ->
-            ModuleCardView(module = module) { onNavigateToModule(module.route) }
-        }
-
-        item(key = "quick-header", span = { GridItemSpan(maxLineSpan) }) {
-            SectionHeader(title = "Quick actions")
-        }
-
-        item(key = "quick-actions", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-                state.quickActions.forEach { action -> QuickActionRow(action = action) }
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
+            SectionHeader(title = "Actions & Feed")
+            ActionsFeedSection(
+                feesStat = feesStat,
+                recentActivity = state.recentActivity,
+                onPayFees = { onNavigateToModule("/fees") },
+                onViewAllActivity = { onSelectTab(DashboardTab.NOTIFICATIONS) }
+            )
         }
     }
 }
 
 @Composable
-private fun CurriculumTab() {
-    DashboardPlaceholder(
-        icon = Icons.Default.School,
-        title = "Curriculum modules loading",
-        message = "Course details, grades and schedules will appear here once integrated."
-    )
-}
-
-@Composable
-private fun NotificationsTab() {
-    DashboardPlaceholder(
-        icon = Icons.Default.NotificationsOff,
-        title = "No notifications yet",
-        message = "Notifications will appear here once the notification service is integrated."
-    )
+private fun NotificationsTab(state: DashboardState, onMarkAllRead: () -> Unit) {
+    NotificationsList(notifications = state.notifications, onMarkAllRead = onMarkAllRead)
 }
 
 @Composable

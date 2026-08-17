@@ -5,6 +5,7 @@ import com.google.gson.JsonParser
 import com.xsc.oneapp.feature.timetable.data.network.TimetableEndpoint
 import com.xsc.sdk.auth.SessionManager
 import com.xsc.sdk.network.APIClient
+import com.xsc.sdk.network.APIError
 import com.xsc.sdk.network.api.DispatchRequest
 import com.xsc.sdk.network.api.DispatchResponse
 import com.xsc.sdk.network.internal.DispatcherApi
@@ -14,9 +15,10 @@ import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import retrofit2.Response
 
@@ -24,6 +26,12 @@ import retrofit2.Response
  * m_timetable rows are raw SQLAlchemy-model dictionaries (same pattern as
  * m_attendance/m_curriculum/m_fees) - see TimetableMapper.kt. Field names below are
  * the real confirmed response shapes (2026-07-31), not guessed.
+ *
+ * `getInstitutionId()` defaults to `1` here (not `null`): confirmed 2026-08-16 that
+ * `inst_id` is a hard requirement of this module's gateway, so every "happy path"
+ * test below needs a session that has one. The no-institution-id case is its own
+ * test now (`throws a clear error when the session doesn't have one`) rather than
+ * the previous default.
  */
 class TimetableRepositoryImplTest {
 
@@ -32,7 +40,7 @@ class TimetableRepositoryImplTest {
     private fun repository(
         dispatcherApi: DispatcherApi,
         sessionManager: SessionManager = mockk<SessionManager>().also {
-            every { it.getInstitutionId() } returns null
+            every { it.getInstitutionId() } returns 1
         }
     ) = TimetableRepositoryImpl(APIClient(dispatcherApi, gson), sessionManager)
 
@@ -78,15 +86,17 @@ class TimetableRepositoryImplTest {
     }
 
     @Test
-    fun `omits inst_id when the session doesn't have one`() = runTest {
+    fun `throws a clear error when the session doesn't have one`() = runTest {
         val dispatcherApi = mockk<DispatcherApi>()
-        val requestSlot = slot<DispatchRequest>()
-        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
-            Response.success(DispatchResponse(status = "success", data = JsonParser.parseString("[]")))
+        val sessionManager = mockk<SessionManager>()
+        every { sessionManager.getInstitutionId() } returns null
 
-        repository(dispatcherApi).getTimetableEntries()
-
-        assertFalse(requestSlot.captured.payload.containsKey("inst_id"))
+        try {
+            repository(dispatcherApi, sessionManager).getTimetableEntries()
+            fail("Expected an APIError.BusinessError")
+        } catch (e: APIError.BusinessError) {
+            assertTrue(e.errorMessage.contains("log", ignoreCase = true))
+        }
     }
 
     @Test

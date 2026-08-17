@@ -15,6 +15,7 @@ import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Response
 
@@ -114,22 +115,127 @@ class FeeRepositoryImplTest {
         assertEquals(FeeEndpoint.Actions.FEE_CONCESSION, requestSlot.captured.action)
     }
 
+    /**
+     * The regression this whole change exists for: `feeInvoice:view` answers with a
+     * single statement object, not a ledger array. The previous implementation mapped
+     * it as rows keyed on stud_id/transaction_date/reference_id - none of which are in
+     * the response - so the Invoices tab rendered one card of dashes.
+     */
     @Test
-    fun `getMyFeeInvoices dispatches to invoice feeInvoice view and maps rows`() = runTest {
+    fun `getMyFeeStatement maps the aggregate statement object`() = runTest {
         val dispatcherApi = mockk<DispatcherApi>()
         val requestSlot = slot<DispatchRequest>()
-        val rows = JsonParser.parseString(
-            """[{"id":89912,"stud_id":12045,"transaction_type_id":4,"transaction_date":"2026-08-05","amount":15000.00,"reference_id":5001,"description":"Tuition Fee Assignment Generation"}]"""
+        val body = JsonParser.parseString(
+            """{"studentId":12045,"totalDebits":50000.0,"totalCredits":10000.0,"outstandingBalance":40000.0}"""
         )
         coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
-            Response.success(DispatchResponse(status = "success", data = rows))
+            Response.success(DispatchResponse(status = "success", data = body))
 
-        val result = repository(dispatcherApi).getMyFeeInvoices()
+        val result = repository(dispatcherApi).getMyFeeStatement()
 
-        assertEquals(1, result.size)
-        assertEquals("5001", result.first().referenceId)
+        assertEquals("12045", result.studentId)
+        assertEquals(50000.0, result.totalDebits)
+        assertEquals(10000.0, result.totalCredits)
+        assertEquals(40000.0, result.outstandingBalance)
+        assertEquals(40000.0, result.payableAmount)
         assertEquals(FeeEndpoint.SubModules.INVOICE, requestSlot.captured.subMod)
         assertEquals(FeeEndpoint.Actions.FEE_INVOICE, requestSlot.captured.action)
+        assertEquals(12045L, requestSlot.captured.payload["studentId"])
+    }
+
+    @Test
+    fun `getMyFeeStatement falls back to summing line rows when given an array`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val rows = JsonParser.parseString(
+            """[{"invoiceId":1,"amount":15000.00,"description":"Tuition"},{"invoiceId":2,"amount":5000.00,"description":"Hostel"}]"""
+        )
+        coEvery { dispatcherApi.dispatch(any()) } returns
+            Response.success(DispatchResponse(status = "success", data = rows))
+
+        val result = repository(dispatcherApi).getMyFeeStatement()
+
+        assertEquals(2, result.lines.size)
+        assertEquals(20000.0, result.totalDebits)
+        assertEquals("Tuition", result.lines.first().description)
+    }
+
+    @Test
+    fun `getMyFeeStatement returns an empty statement rather than throwing on no data`() =
+        runTest {
+            val dispatcherApi = mockk<DispatcherApi>()
+            coEvery { dispatcherApi.dispatch(any()) } returns
+                Response.success(DispatchResponse(status = "success", data = null))
+
+            assertTrue(repository(dispatcherApi).getMyFeeStatement().isEmpty)
+        }
+
+    @Test
+    fun `createOnlinePaymentOrder posts method ONLINE and maps the gateway order`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        val body = JsonParser.parseString(
+            """{"id":"order_MOCK12345678","entity":"order","amount":4000000,"currency":"INR"}"""
+        )
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = body))
+
+        val order = repository(dispatcherApi).createOnlinePaymentOrder("1", 40000.0, "Asha")
+
+        assertEquals("order_MOCK12345678", order.orderId)
+        assertEquals(4_000_000L, order.amountInPaise)
+        assertEquals("INR", order.currency)
+        // The backend is still returning a placeholder order, so Checkout must not be
+        // handed this id.
+        assertFalse(order.isRealGatewayOrder)
+        assertEquals(FeeEndpoint.ActionTypes.ADD, requestSlot.captured.actionType)
+        assertEquals("ONLINE", requestSlot.captured.payload["method"])
+        assertEquals(1L, requestSlot.captured.payload["invoiceId"])
+    }
+
+    @Test
+    fun `createOnlinePaymentOrder falls back to the requested amount when the order has none`() =
+        runTest {
+            val dispatcherApi = mockk<DispatcherApi>()
+            coEvery { dispatcherApi.dispatch(any()) } returns Response.success(
+                DispatchResponse(
+                    status = "success",
+                    data = JsonParser.parseString("""{"id":"order_X","currency":"INR"}""")
+                )
+            )
+
+            val order = repository(dispatcherApi).createOnlinePaymentOrder(null, 250.5, "Asha")
+
+            assertEquals(25050L, order.amountInPaise)
+        }
+
+    /**
+     * The card has already been charged by the time this runs, so a rejected ledger
+     * update must degrade to `false`, never to an exception the UI would render as
+     * "payment failed".
+     */
+    @Test
+    fun `confirmOnlinePayment returns false instead of throwing when the backend rejects it`() =
+        runTest {
+            val dispatcherApi = mockk<DispatcherApi>()
+            coEvery { dispatcherApi.dispatch(any()) } returns Response.success(
+                DispatchResponse(status = "error", message = "Unknown payment")
+            )
+
+            assertFalse(repository(dispatcherApi).confirmOnlinePayment("pay_ABC", true))
+        }
+
+    @Test
+    fun `confirmOnlinePayment posts COMPLETED on success`() = runTest {
+        val dispatcherApi = mockk<DispatcherApi>()
+        val requestSlot = slot<DispatchRequest>()
+        coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
+            Response.success(DispatchResponse(status = "success", data = null))
+
+        assertTrue(repository(dispatcherApi).confirmOnlinePayment("pay_ABC", true))
+
+        assertEquals(FeeEndpoint.ActionTypes.UPDATE, requestSlot.captured.actionType)
+        assertEquals("COMPLETED", requestSlot.captured.payload["status"])
+        assertEquals("pay_ABC", requestSlot.captured.payload["paymentId"])
     }
 
     @Test
@@ -170,11 +276,11 @@ class FeeRepositoryImplTest {
     }
 
     @Test
-    fun `getFeePenalties dispatches to penalty feePenalty view and maps rows, without a studentId filter`() = runTest {
+    fun `getFeePenalties scopes the query to the signed-in student and maps rows`() = runTest {
         val dispatcherApi = mockk<DispatcherApi>()
         val requestSlot = slot<DispatchRequest>()
         val rows = JsonParser.parseString(
-            """[{"id":88,"stud_id":12045,"fee_asmt_id":5001,"amount":500.00,"reason":"Late payment beyond due date (09-01)","applied_date":"2026-09-05","status_id":1}]"""
+            """[{"penaltyId":88,"studentId":12045,"fee_asmt_id":5001,"penaltyType":"FIXED","penaltyValue":500.00,"reason":"Late payment beyond due date (09-01)","penaltyDate":"2026-09-05"}]"""
         )
         coEvery { dispatcherApi.dispatch(capture(requestSlot)) } returns
             Response.success(DispatchResponse(status = "success", data = rows))
@@ -183,7 +289,13 @@ class FeeRepositoryImplTest {
 
         assertEquals(1, result.size)
         assertEquals("5001", result.first().feeAssignmentId)
-        assertFalse(requestSlot.captured.payload.containsKey("studentId"))
+        // v1.3 renamed the money field penaltyValue and the date penaltyDate; both
+        // used to map to null, so a penalty rendered with no amount at all.
+        assertEquals("500.0", result.first().amount)
+        assertEquals("2026-09-05", result.first().appliedDate)
+        // v1.3 §3.7 documents studentId as this action's filter. Sending only
+        // inst_id (the write side's filter) returned every student's penalties.
+        assertEquals(12045L, requestSlot.captured.payload["studentId"])
         assertEquals(FeeEndpoint.SubModules.PENALTY, requestSlot.captured.subMod)
         assertEquals(FeeEndpoint.Actions.FEE_PENALTY, requestSlot.captured.action)
     }

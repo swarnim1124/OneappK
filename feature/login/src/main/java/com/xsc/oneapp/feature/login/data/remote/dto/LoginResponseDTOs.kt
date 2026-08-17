@@ -12,6 +12,8 @@ data class LoginResultDTO(
     @SerializedName("token") val token: String?,
     @SerializedName("refreshToken") val refreshToken: String?,
     @SerializedName("captchaRequired") val captchaRequired: Boolean?,
+    @SerializedName("mfaRequired", alternate = ["mfa_required"]) val mfaRequired: Boolean?,
+    @SerializedName("challengeToken", alternate = ["challenge_token"]) val challengeToken: String?,
     @SerializedName("user") val user: LoginUserDTO?
 )
 

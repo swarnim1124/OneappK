@@ -141,11 +141,74 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `getInstitutionId delegates to TokenManager (it's not a JWT claim)`() {
-        val tokenManager = tokenManagerReturning(tokenFor("""{"user_id":3,"exp":9999999999}"""))
+    fun `getInstitutionId prefers TokenManager over any JWT claim`() {
+        val tokenManager = tokenManagerReturning(
+            tokenFor("""{"user_id":3,"exp":9999999999,"institutionId":2}""")
+        )
         every { tokenManager.institutionId } returns 1
         val sessionManager = SessionManager(tokenManager)
 
         assertEquals(1, sessionManager.getInstitutionId())
+    }
+
+    @Test
+    fun `getInstitutionId falls back to a JWT claim when TokenManager has none - covers a session saved before that field, or a login response that omitted it`() {
+        val tokenManager = tokenManagerReturning(
+            tokenFor("""{"user_id":3,"exp":9999999999,"institutionId":7}""")
+        )
+        every { tokenManager.institutionId } returns null
+        val sessionManager = SessionManager(tokenManager)
+
+        assertEquals(7, sessionManager.getInstitutionId())
+    }
+
+    @Test
+    fun `getInstitutionId tries the snake_case and short-form claim keys too`() {
+        val tokenManager = tokenManagerReturning(
+            tokenFor("""{"user_id":3,"exp":9999999999,"inst_id":9}""")
+        )
+        every { tokenManager.institutionId } returns null
+        val sessionManager = SessionManager(tokenManager)
+
+        assertEquals(9, sessionManager.getInstitutionId())
+    }
+
+    @Test
+    fun `getFirstName returns only the first token of the resolved name`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"name":"Aarav Sharma"}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertEquals("Aarav Sharma", sessionManager.getDisplayName())
+        assertEquals("Aarav", sessionManager.getFirstName())
+    }
+
+    @Test
+    fun `a name-less token derives a display name from the email local-part instead of a placeholder like 'there'`() {
+        val token = tokenFor(
+            """{"user_id":3,"exp":9999999999,"email":"aarav.sharma@oneapp.local"}"""
+        )
+        val sessionManager = SessionManager(tokenManagerReturning(token))
+
+        assertEquals("Aarav Sharma", sessionManager.getDisplayName())
+        assertEquals("Aarav", sessionManager.getFirstName())
+    }
+
+    @Test
+    fun `no token and no email falls back to a generic, non-broken-looking name`() {
+        val sessionManager = SessionManager(tokenManagerReturning(null))
+
+        assertEquals("Student", sessionManager.getDisplayName())
+        assertEquals("Student", sessionManager.getFirstName())
+    }
+
+    @Test
+    fun `getInstitutionId is null when neither TokenManager nor the token has one`() {
+        val tokenManager = tokenManagerReturning(tokenFor("""{"user_id":3,"exp":9999999999}"""))
+        every { tokenManager.institutionId } returns null
+        val sessionManager = SessionManager(tokenManager)
+
+        assertNull(sessionManager.getInstitutionId())
     }
 }

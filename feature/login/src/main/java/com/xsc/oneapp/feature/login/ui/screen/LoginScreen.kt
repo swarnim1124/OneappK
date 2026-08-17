@@ -3,10 +3,18 @@ package com.xsc.oneapp.feature.login.ui.screen
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -22,7 +30,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -48,7 +59,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -65,6 +81,7 @@ import com.xsc.sdk.theme.LocalDarkTheme
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.LocalThemeToggle
 import com.xsc.sdk.theme.OneAppMotion
+import com.xsc.sdk.theme.OneAppPillShape
 import kotlinx.coroutines.flow.collectLatest
 
 /**
@@ -73,6 +90,12 @@ import kotlinx.coroutines.flow.collectLatest
  * Presentation only - the effect collection, the events dispatched to [LoginViewModel]
  * and the Toast on error are exactly the behaviour that was here before. No validation
  * moved into this file.
+ *
+ * Restyled to match the Stitch "Welcome Back" design: pill-shaped filled fields, a
+ * gradient pill sign-in button, and a "Contact Admin" prompt. The pill/gradient button
+ * look and the filled-field look are additive, opt-in parameters on the shared
+ * [PrimaryButton] / [PremiumTextField] components (default behaviour elsewhere in the
+ * app is unchanged).
  *
  * Fixed while restyling: the previous layout put `Spacer(Modifier.weight(1f))` inside a
  * `verticalScroll` Column. A scrolling column measures children against unbounded
@@ -123,7 +146,7 @@ fun LoginScreen(
                 // password field on short screens.
                 .imePadding()
                 .padding(horizontal = spacing.xl),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(40.dp))
 
@@ -136,27 +159,64 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(spacing.xxl))
 
+            AnimatedContent(
+                targetState = state.isMfaRequired,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(OneAppMotion.DurationLong)) togetherWith
+                            fadeOut(animationSpec = tween(OneAppMotion.DurationLong))
+                },
+                label = "LoginMfaTransition"
+            ) { isMfa ->
+                if (!isMfa) {
+                    LoginFormCard(
+                        email = state.emailInput,
+                        password = state.passwordInput,
+                        isPasswordVisible = state.isPasswordVisible,
+                        isLoading = state.isLoading,
+                        onEmailChange = { viewModel.onEvent(LoginEvent.EmailChanged(it)) },
+                        onPasswordChange = { viewModel.onEvent(LoginEvent.PasswordChanged(it)) },
+                        onTogglePasswordVisibility = { viewModel.onEvent(LoginEvent.TogglePasswordVisibility) },
+                        onForgotPassword = onNavigateToForgotPassword,
+                    ) { viewModel.onEvent(LoginEvent.SubmitLogin) }
+                } else {
+                    MfaFormCard(
+                        otp = state.otpInput,
+                        isBackupCodeMode = state.isBackupCodeMode,
+                        isLoading = state.isLoading,
+                        onOtpChange = { viewModel.onEvent(LoginEvent.OtpChanged(it)) },
+                        onToggleMfaMode = { viewModel.onEvent(LoginEvent.ToggleMfaMode) },
+                        onBack = { viewModel.onEvent(LoginEvent.BackToLogin) },
+                        onSubmit = { viewModel.onEvent(LoginEvent.SubmitMfa) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(spacing.xl))
+
             AnimatedVisibility(
                 visible = contentVisible,
-                enter = OneAppMotion.contentEnter(indexOffset = 1)
+                enter = OneAppMotion.contentEnter(indexOffset = 2)
             ) {
-                LoginFormCard(
-                    email = state.emailInput,
-                    password = state.passwordInput,
-                    isPasswordVisible = state.isPasswordVisible,
-                    isLoading = state.isLoading,
-                    onEmailChange = { viewModel.onEvent(LoginEvent.EmailChanged(it)) },
-                    onPasswordChange = { viewModel.onEvent(LoginEvent.PasswordChanged(it)) },
-                    onTogglePasswordVisibility = { viewModel.onEvent(LoginEvent.TogglePasswordVisibility) },
-                    onForgotPassword = onNavigateToForgotPassword
-                ) { viewModel.onEvent(LoginEvent.SubmitLogin) }
+                // TEMPORARY: no "contact admin" flow exists anywhere in the codebase yet
+                // (no support screen, no mailto target, no endpoint). This reproduces the
+                // Stitch design's prompt with a static, local acknowledgement so it isn't
+                // a dead-looking link; see Backend Endpoint Requirements for the real flow.
+                ContactAdminPrompt(
+                    onContactAdmin = {
+                        Toast.makeText(
+                            context,
+                            "Please contact your institution's administrator for account access.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(spacing.xxl))
 
             AnimatedVisibility(
                 visible = contentVisible,
-                enter = OneAppMotion.contentEnter(indexOffset = 2)
+                enter = OneAppMotion.contentEnter(indexOffset = 3)
             ) {
                 TermsFooter()
             }
@@ -178,7 +238,7 @@ private fun LoginHeader() {
         Spacer(modifier = Modifier.height(spacing.xxl))
 
         Text(
-            text = "Welcome back",
+            text = "Welcome Back",
             style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
@@ -228,7 +288,8 @@ private fun LoginFormCard(
                 placeholder = "Email or Username",
                 icon = Icons.Default.Email,
                 keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next
+                imeAction = ImeAction.Next,
+                filled = true
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
@@ -240,7 +301,8 @@ private fun LoginFormCard(
                     imeAction = ImeAction.Done,
                     isSecure = true,
                     isPasswordVisible = isPasswordVisible,
-                    onPasswordVisibilityToggle = onTogglePasswordVisibility
+                    onPasswordVisibilityToggle = onTogglePasswordVisibility,
+                    filled = true
                 )
 
                 Row(
@@ -260,20 +322,159 @@ private fun LoginFormCard(
             }
 
             PrimaryButton(
-                text = "Sign in",
+                text = "Log In",
                 onClick = onSubmit,
-                isLoading = isLoading
+                isLoading = isLoading,
+                shape = OneAppPillShape,
+                containerGradient = Brush.horizontalGradient(
+                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                )
             )
         }
     }
 }
 
 @Composable
+private fun MfaFormCard(
+    otp: String,
+    isBackupCodeMode: Boolean,
+    isLoading: Boolean,
+    onOtpChange: (String) -> Unit,
+    onToggleMfaMode: () -> Unit,
+    onBack: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    val spacing = LocalSpacing.current
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(max = 480.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(spacing.lg)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(spacing.sm))
+                Text(
+                    text = if (isBackupCodeMode) "Backup Code" else "Two-Step Verification",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Text(
+                text = if (isBackupCodeMode) {
+                    "Enter one of your 8-character recovery codes to sign in."
+                } else {
+                    "Enter the 6-digit code from your authenticator app."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            PremiumTextField(
+                text = otp,
+                onTextChange = onOtpChange,
+                placeholder = if (isBackupCodeMode) "8-character code" else "6-digit code",
+                icon = if (isBackupCodeMode) Icons.Default.VpnKey else Icons.Default.Pin,
+                keyboardType = if (isBackupCodeMode) KeyboardType.Ascii else KeyboardType.NumberPassword,
+                imeAction = ImeAction.Done,
+                isSecure = false,
+                filled = true,
+                textStyle = MaterialTheme.typography.headlineSmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = 4.sp
+                )
+            )
+
+            PrimaryButton(
+                text = "Verify",
+                onClick = onSubmit,
+                isLoading = isLoading,
+                shape = OneAppPillShape,
+                containerGradient = Brush.horizontalGradient(
+                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                )
+            )
+
+            TextButton(
+                onClick = onToggleMfaMode,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text(
+                    text = if (isBackupCodeMode) "Use Authenticator App" else "Lost access? Use backup code",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContactAdminPrompt(onContactAdmin: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "Don't have an account? ",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Contact Admin",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onContactAdmin)
+        )
+    }
+}
+
+@Composable
 private fun TermsFooter() {
+    val bodyColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val linkColor = MaterialTheme.colorScheme.primary
+
+    // TEMPORARY: "Terms" and "Privacy Policy" are styled as links per the Stitch design,
+    // but no Terms of Service / Privacy Policy document or screen exists in the app yet,
+    // so they are inert for now - see Backend Endpoint Requirements.
+    val text = buildAnnotatedString {
+        withStyle(SpanStyle(color = bodyColor)) {
+            append("By continuing, you agree to our ")
+        }
+        withStyle(SpanStyle(color = linkColor, fontWeight = FontWeight.SemiBold)) {
+            append("Terms")
+        }
+        withStyle(SpanStyle(color = bodyColor)) {
+            append(" and ")
+        }
+        withStyle(SpanStyle(color = linkColor, fontWeight = FontWeight.SemiBold)) {
+            append("Privacy Policy")
+        }
+        withStyle(SpanStyle(color = bodyColor)) {
+            append(".")
+        }
+    }
+
     Text(
-        text = "By continuing you agree to our Terms & Privacy Policy",
+        text = text,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
         modifier = Modifier.widthIn(max = 320.dp)
     )

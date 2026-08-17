@@ -22,6 +22,7 @@ import com.xsc.oneapp.feature.timetable.domain.model.WorkingDay
 import com.xsc.oneapp.feature.timetable.domain.repository.TimetableRepository
 import com.xsc.sdk.auth.SessionManager
 import com.xsc.sdk.network.APIClient
+import com.xsc.sdk.network.APIError
 import javax.inject.Inject
 
 /** No request-payload example was confirmed for any of these 8 view calls - only
@@ -29,16 +30,35 @@ import javax.inject.Inject
  * so as a defensive-optional inference (not a confirmed requirement) this sends
  * it when the session has one, matching m_fees's request-key casing for the same
  * field - same "doesn't hurt if unused, helps if required" reasoning as exam's
- * getExamSchedules(). No other filter (secId/termId/scheduleId/...) is guessed. */
+ * getExamSchedules(). No other filter (secId/termId/scheduleId/...) is guessed.
+ *
+ * Confirmed *not* optional, 2026-08-16: this module's own gateway rejects every one
+ * of these 8 view calls with "INST_ID is required" when it's missing, so unlike
+ * m_fees this is no longer sent defensively-if-present - see [instIdPayload]. */
 class TimetableRepositoryImpl @Inject constructor(
     private val apiClient: APIClient,
     private val sessionManager: SessionManager
 ) : TimetableRepository {
 
+    /**
+     * `inst_id` is genuinely required here (see class kdoc), so unlike m_fees's
+     * identically-shaped `instPayload()` this fails fast with a clear, actionable
+     * message instead of silently sending the request without it and letting the
+     * backend's terser "INST_ID is required" reach the user instead.
+     *
+     * [SessionManager.getInstitutionId] is normally set from the login response
+     * (see TokenManager.institutionId) with a JWT-claim fallback for sessions that
+     * predate that field or a login response that omitted it. If both are still
+     * empty here, the session genuinely doesn't have one on file - it is not
+     * something a retry on this same screen can fix.
+     */
     private fun instIdPayload(): MutableMap<String, Any> {
-        val payload = mutableMapOf<String, Any>()
-        sessionManager.getInstitutionId()?.let { payload["inst_id"] = it }
-        return payload
+        val institutionId = sessionManager.getInstitutionId()
+            ?: throw APIError.BusinessError(
+                "INST_ID_MISSING",
+                "Your session is missing institution info. Please log out and log back in."
+            )
+        return mutableMapOf("inst_id" to institutionId)
     }
 
     /** m_timetable contract: sm_schedule/timetable/view. */

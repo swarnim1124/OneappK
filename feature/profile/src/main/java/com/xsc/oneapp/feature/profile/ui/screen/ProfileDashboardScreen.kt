@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -122,6 +123,15 @@ fun ProfileDashboardScreen(
         )
     )
 
+    val security = listOf(
+        ProfileDashlet(
+            title = "Security",
+            description = "Two-factor authentication",
+            icon = Icons.Default.Security,
+            route = ProfileDestinations.SECURITY
+        )
+    )
+
     var visible by remember { mutableStateOf(value = false) }
     LaunchedEffect(Unit) { visible = true }
 
@@ -150,7 +160,8 @@ fun ProfileDashboardScreen(
                 listOf(
                     "Identity" to identity,
                     "People" to people,
-                    "Preferences" to preferences
+                    "Preferences" to preferences,
+                    "Security" to security
                 ).forEachIndexed { index, group ->
                     AnimatedVisibility(
                         visible = visible,

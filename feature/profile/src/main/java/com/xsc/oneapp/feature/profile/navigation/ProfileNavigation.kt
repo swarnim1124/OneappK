@@ -15,6 +15,7 @@ object ProfileDestinations {
     const val EMERGENCY_CONTACT = "emergency_contact"
     const val MEDICAL_DETAIL = "medical_detail"
     const val USER_PREFERENCE = "user_preference"
+    const val SECURITY = "security"
 }
 
 fun NavGraphBuilder.profileGraph(navController: NavHostController) {
@@ -44,6 +45,9 @@ fun NavGraphBuilder.profileGraph(navController: NavHostController) {
         }
         composable(route = ProfileDestinations.USER_PREFERENCE) {
             UserPreferenceScreen(onNavigateBack = { navController.popBackStack() })
+        }
+        composable(route = ProfileDestinations.SECURITY) {
+            SecurityScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

@@ -43,6 +43,7 @@ class DashboardViewModelTest {
         getPinnedModuleIdsUseCase = mockk()
         togglePinnedModuleUseCase = mockk()
         every { sessionManager.getDisplayName() } returns "Student One"
+        every { sessionManager.getFirstName() } returns "Student"
         every { sessionManager.currentEmail } returns MutableStateFlow("student@oneapp.local")
         every { sessionManager.currentRole } returns MutableStateFlow("student")
         every { getPinnedModuleIdsUseCase() } returns emptySet()
@@ -68,6 +69,7 @@ class DashboardViewModelTest {
         val vm = viewModel()
 
         assertEquals("Student One", vm.state.value.userName)
+        assertEquals("Student", vm.state.value.userFirstName)
         assertEquals("student@oneapp.local", vm.state.value.userEmail)
         assertEquals("student", vm.state.value.userRole)
     }
@@ -86,13 +88,13 @@ class DashboardViewModelTest {
     }
 
     @Test
-    fun `role subtitle maps a known role to its display title`() {
+    fun `role subtitle title-cases the backend-provided role rather than fabricating one`() {
         every { sessionManager.currentRole } returns MutableStateFlow("teacher")
         coEvery { getAccessibleModulesUseCase() } returns emptyList()
 
         val vm = viewModel()
 
-        assertEquals("Associate Professor", vm.getRoleSubtitle())
+        assertEquals("Teacher", vm.getRoleSubtitle())
     }
 
     @Test

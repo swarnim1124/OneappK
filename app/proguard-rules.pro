@@ -87,3 +87,20 @@
 # enough that stripping warnings here would hide real problems, not fix them.
 -dontwarn kotlinx.coroutines.**
 -keepclassmembers class kotlin.Metadata { *; }
+
+
+# --- Razorpay Checkout -------------------------------------------------------
+# The SDK resolves the host activity's payment callbacks reflectively, so R8 renaming
+# RazorpayCheckoutActivity's onPaymentSuccess/onPaymentError turns a successful card
+# charge into a silent no-op in release builds only - the worst possible failure mode
+# for this code path. The AAR ships consumer rules; these are belt-and-braces for R8
+# full mode, which ignores some of them.
+-keepclassmembers class * {
+    @com.razorpay.* <methods>;
+}
+-keep class com.razorpay.** { *; }
+-keep interface com.razorpay.** { *; }
+-dontwarn com.razorpay.**
+-keep class com.xsc.oneapp.feature.fee.payment.RazorpayCheckoutActivity { *; }
+-keepattributes JavascriptInterface
+-keepattributes *Annotation*

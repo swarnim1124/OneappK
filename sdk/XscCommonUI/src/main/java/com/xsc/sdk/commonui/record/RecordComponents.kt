@@ -290,8 +290,14 @@ fun LoadingState(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * [title] is additive and optional (default `null` preserves every existing call
+ * site's single-line look unchanged) - a short bold headline above [message], for
+ * screens that want the two-line "You're all caught up" / "There's no pending fee
+ * payment." shape rather than one caption-only sentence.
+ */
 @Composable
-fun EmptyState(message: String, modifier: Modifier = Modifier) {
+fun EmptyState(message: String, modifier: Modifier = Modifier, title: String? = null, icon: ImageVector = Icons.Default.Inbox) {
     val spacing = LocalSpacing.current
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -306,13 +312,22 @@ fun EmptyState(message: String, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    Icons.Default.Inbox,
+                    icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(26.dp)
                 )
             }
             Spacer(modifier = Modifier.height(spacing.lg))
+            if (title != null) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(spacing.xs))
+            }
             Text(
                 message,
                 style = MaterialTheme.typography.bodyMedium,

@@ -68,14 +68,20 @@ class TimetableViewModel @Inject constructor(
      * Loads the selected tab's data if it hasn't been fetched yet. Indices match
      * TimetableScreen's TAB_TITLES order.
      *
-     * Tab 0 needs two sections: the schedule renders each entry's period using the time
-     * slot list, so both are requested together - two calls rather than eight.
+     * Tab 0 needs three sections: the weekly grid renders entries against the time
+     * slot list (rows) and the working day pattern (columns), so all three are
+     * requested together - three calls rather than eight.
      */
     fun onTabSelected(index: Int) {
         when (index) {
             0 -> {
+                // The weekly grid is a client-side join of three independent calls:
+                // entries are the cells, time slots the rows, working days the
+                // columns. Three requests on entry rather than eight, and the grid
+                // degrades to entry-derived columns if working days are unconfigured.
                 entries.loadOnce()
                 timeSlots.loadOnce()
+                workingDays.loadOnce()
             }
             1 -> workingDays.loadOnce()
             2 -> timeSlots.loadOnce()

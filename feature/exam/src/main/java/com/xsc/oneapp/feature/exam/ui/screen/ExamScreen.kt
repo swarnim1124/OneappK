@@ -15,11 +15,11 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xsc.oneapp.core.result.UiState
 import com.xsc.oneapp.feature.exam.domain.model.ExamSchedule
@@ -37,21 +37,26 @@ import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.LocalStatusColors
 
 /**
- * Restyled only. The state machine, the retry paths and the `onScheduleClick` contract
- * (still gated on a non-null schedule id) are unchanged.
+ * The exam schedule list - one section of the shared Exam graph (see
+ * ExamNavigation.kt), reached from ExamOverviewScreen rather than being the module's
+ * entry point itself. [viewModel] is the graph-scoped instance shared with Results and
+ * Revaluation, so revisiting this screen does not refetch schedules already loaded
+ * elsewhere in the graph.
  *
- * Status colours now resolve through LocalStatusColors so "published" and "on-hold"
- * stay legible in dark mode instead of sitting too close to the background.
+ * Status colours resolve through LocalStatusColors so "published" and "on-hold" stay
+ * legible in dark mode instead of sitting too close to the background.
  */
 @Composable
 fun ExamScreen(
     onBack: () -> Unit,
     onScheduleClick: (scheduleId: String) -> Unit,
-    viewModel: ExamViewModel = hiltViewModel()
+    viewModel: ExamViewModel
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by viewModel.schedules.state.collectAsStateWithLifecycle()
 
-    RecordScaffold(title = "Exams", onBack = onBack) { padding ->
+    LaunchedEffect(Unit) { viewModel.loadSchedules() }
+
+    RecordScaffold(title = "Schedules", onBack = onBack) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (val current = state) {
                 is UiState.Loading -> LoadingState()
@@ -60,9 +65,9 @@ fun ExamScreen(
                 } else {
                     ExamScheduleList(current.data, onScheduleClick)
                 }
-                is UiState.BusinessError -> ErrorState(current.message, viewModel::load)
-                is UiState.NetworkError -> ErrorState(current.message, viewModel::load)
-                is UiState.UnexpectedError -> ErrorState(current.message, viewModel::load)
+                is UiState.BusinessError -> ErrorState(current.message, viewModel.schedules::reload)
+                is UiState.NetworkError -> ErrorState(current.message, viewModel.schedules::reload)
+                is UiState.UnexpectedError -> ErrorState(current.message, viewModel.schedules::reload)
             }
         }
     }

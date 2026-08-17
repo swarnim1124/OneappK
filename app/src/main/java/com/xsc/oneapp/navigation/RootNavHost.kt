@@ -18,8 +18,7 @@ import com.xsc.oneapp.feature.login.ui.screen.VerifyOtpScreen
 import com.xsc.sdk.auth.SessionManager
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xsc.oneapp.feature.profile.navigation.profileGraph
-import com.xsc.oneapp.feature.exam.ui.screen.ExamScreen
-import com.xsc.oneapp.feature.exam.ui.screen.HallTicketScreen
+import com.xsc.oneapp.feature.exam.navigation.examGraph
 import com.xsc.oneapp.feature.attendance.navigation.attendanceGraph
 import com.xsc.oneapp.feature.curriculum.ui.screen.CurriculumScreen
 import com.xsc.oneapp.feature.fee.ui.screen.FeeScreen
@@ -53,19 +52,15 @@ fun RootNavHost(
     // so it doesn't fire while the user is still working through the pre-auth screens
     // (forgot password / OTP / reset), which are unauthenticated the whole time.
     LaunchedEffect(sessionManager) {
-        var wasAuthenticated = sessionManager.isAuthenticated.value
         sessionManager.isAuthenticated.collect { authenticated ->
-            if (wasAuthenticated && !authenticated) {
-                // popUpTo the root graph's own id (not a specific destination) is
-                // the documented way to clear the entire back stack regardless of
-                // where the user was when the session ended - popUpTo(0) looks
-                // similar but 0 isn't a real destination id in Compose Navigation's
-                // hash-based ids, so it would silently pop nothing.
+            // Current destination is only readable from the controller's backstack.
+            // If we are ALREADY on Login, do nothing.
+            val currentRoute = navController.currentBackStackEntry?.destination?.route
+            if (!authenticated && currentRoute != Routes.LOGIN && currentRoute != null) {
                 navController.navigate(Routes.LOGIN) {
                     popUpTo(navController.graph.id) { inclusive = true }
                 }
             }
-            wasAuthenticated = authenticated
         }
     }
 
@@ -132,29 +127,21 @@ fun RootNavHost(
                 onNavigateToModule = { route ->
                     navController.navigate(Routes.destinationFor(route))
                 },
-                // Navigation itself is handled by the reactive isAuthenticated
-                // effect above, once DashboardViewModel.logout()'s
-                // sessionManager.clearSession() flips it to false - this callback
-                // firing an explicit navigate() too would race the reactive one and
-                // risk a duplicate back-stack entry.
-                onLogout = {},
+                // Handled both directly (onLogout button click) for immediate UI
+                // feedback and reactively (isAuthenticated listener above) for
+                // background/forced session expiration.
+                onLogout = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(navController.graph.id) { inclusive = true }
+                    }
+                },
                 onChangePassword = { navController.navigate(Routes.FORGOT_PASSWORD) }
             )
         }
 
-        composable(Routes.EXAMS) {
-            ExamScreen(
-                onBack = { navController.popBackStack() },
-                onScheduleClick = { scheduleId -> navController.navigate(Routes.hallTicket(scheduleId)) }
-            )
-        }
-
-        composable(
-            Routes.HALL_TICKET,
-            arguments = listOf(navArgument("scheduleId") { type = NavType.StringType })
-        ) {
-            HallTicketScreen(onBack = { navController.popBackStack() })
-        }
+        // The Exam feature owns its internal destinations; :app only mounts the graph.
+        // Routes.EXAMS is an alias for its public entry point.
+        examGraph(navController)
 
         // The Attendance feature owns its internal destinations; :app only mounts the
         // graph. Routes.ATTENDANCE is an alias for its public entry point.

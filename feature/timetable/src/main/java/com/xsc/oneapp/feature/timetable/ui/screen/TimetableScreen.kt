@@ -24,6 +24,9 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,7 +49,9 @@ import com.xsc.oneapp.feature.timetable.domain.model.Substitution
 import com.xsc.oneapp.feature.timetable.domain.model.TimeSlot
 import com.xsc.oneapp.feature.timetable.domain.model.TimetableApproval
 import com.xsc.oneapp.feature.timetable.domain.model.TimetableEntry
+import com.xsc.oneapp.feature.timetable.domain.model.WeeklySchedule
 import com.xsc.oneapp.feature.timetable.domain.model.WorkingDay
+import com.xsc.oneapp.feature.timetable.ui.components.WeeklyTimetableGrid
 import com.xsc.oneapp.feature.timetable.ui.viewmodel.TimetableViewModel
 import java.time.LocalDate
 import com.xsc.sdk.commonui.record.EmptyState
@@ -99,7 +104,12 @@ fun TimetableScreen(
             )
             Box(modifier = Modifier.fillMaxSize()) {
                 when (selectedTab) {
-                    0 -> ScheduleTab(entriesState, timeSlotsState, viewModel::loadEntries)
+                    0 -> ScheduleTab(
+                        state = entriesState,
+                        timeSlotsState = timeSlotsState,
+                        workingDaysState = workingDaysState,
+                        onRetry = viewModel::loadEntries
+                    )
                     1 -> WorkingDaysTab(workingDaysState, viewModel::loadWorkingDays)
                     2 -> TimeSlotsTab(timeSlotsState, viewModel::loadTimeSlots)
                     3 -> CalendarTab(academicCalendarState, viewModel::loadAcademicCalendar)
@@ -115,10 +125,23 @@ fun TimetableScreen(
 
 // --- Schedule (TimetableEntry) ---
 
+private val SCHEDULE_VIEWS = listOf("Week", "List")
+
+/**
+ * The schedule, as a day x period grid by default.
+ *
+ * `timetable:view` returns a flat row list (contract v2 §4.1) and this tab used to
+ * render it as one, which is the wrong shape for the question people actually bring
+ * to a timetable - "what do I have on Wednesday at 11". The grid is assembled client
+ * side by [WeeklySchedule.build]; the list is kept behind a toggle because it is
+ * still the better view for scanning every entry's room/faculty/status at once, and
+ * it is the fallback when there are no time slots configured to form rows from.
+ */
 @Composable
 private fun ScheduleTab(
     state: UiState<List<TimetableEntry>>,
     timeSlotsState: UiState<List<TimeSlot>>,
+    workingDaysState: UiState<List<WorkingDay>>,
     onRetry: () -> Unit
 ) {
     when (state) {
@@ -126,60 +149,99 @@ private fun ScheduleTab(
         is UiState.Success -> if (state.data.isEmpty()) {
             EmptyState("No timetable entries published yet.")
         } else {
-            // dayOfWeek comes back as "MONDAY"/"TUESDAY"/... (see the confirmed
-            // response shape) which matches java.time.DayOfWeek.name exactly, so
-            // today's classes can be surfaced first without any backend filter.
+            var viewIndex by remember { mutableIntStateOf(0) }
+
+            // dayOfWeek comes back as "MONDAY"/"TUESDAY"/... which matches
+            // java.time.DayOfWeek.name exactly, so today can be highlighted with no
+            // backend filter. Read once per composition rather than inside the
+            // builder so the builder stays a pure, testable function.
             val today = remember { LocalDate.now().dayOfWeek.name }
-            val sortedEntries = remember(state.data, today) {
-                state.data.sortedByDescending { it.dayOfWeek == today }
+            val timeSlots = (timeSlotsState as? UiState.Success)?.data.orEmpty()
+            val workingDays = (workingDaysState as? UiState.Success)?.data.orEmpty()
+
+            val schedule = remember(state.data, timeSlots, workingDays, today) {
+                WeeklySchedule.build(state.data, workingDays, timeSlots, today)
             }
-            // Time Slots load independently (its own tab/call) but already carry
-            // start/end times - joining them client-side here turns a raw
-            // "Slot 2" into "09:00–09:50" without any new network call or
-            // backend change, only when that slot has actually loaded.
-            val timeSlotsById = remember(timeSlotsState) {
-                (timeSlotsState as? UiState.Success)?.data?.associateBy { it.id } ?: emptyMap()
-            }
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
-                items(sortedEntries, key = { it.hashCode() }) { entry ->
-                    val isToday = entry.dayOfWeek == today
-                    TimetableCard {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                IconBadge(Icons.Default.Schedule, tint = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(entry.courseId ?: "Course —", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                        if (isToday) {
-                                            StatusPill("TODAY")
-                                        }
-                                    }
-                                    val slotLabel = entry.timeSlotId?.let { id -> timeSlotsById[id]?.displayRange() ?: "Slot $id" }
-                                    val dayAndSlot = listOfNotNull(entry.dayOfWeek, slotLabel).joinToString(" · ")
-                                    if (dayAndSlot.isNotBlank()) {
-                                        Text(dayAndSlot, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                            if (entry.ttStatus != null) {
-                                StatusPill(entry.ttStatus, tint = MaterialTheme.colorScheme.tertiary)
-                            }
-                        }
-                        val details = listOfNotNull(
-                            entry.roomId?.let { "Room $it" },
-                            entry.facultyId?.let { "Faculty $it" },
-                            entry.sessionTypeId
-                        ).joinToString(" · ")
-                        if (details.isNotBlank()) {
-                            Text(details, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Only offered when a grid can actually be drawn. Time slots load on
+                // their own request and an institution may not have configured any -
+                // showing a "Week" tab that renders nothing would be a worse bug than
+                // the flat list this replaced.
+                if (!schedule.isEmpty) {
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        SCHEDULE_VIEWS.forEachIndexed { index, label ->
+                            SegmentedButton(
+                                selected = viewIndex == index,
+                                onClick = { viewIndex = index },
+                                shape = SegmentedButtonDefaults.itemShape(index, SCHEDULE_VIEWS.size)
+                            ) { Text(label) }
                         }
                     }
+                }
+
+                if (!schedule.isEmpty && viewIndex == 0) {
+                    WeeklyTimetableGrid(schedule)
+                } else {
+                    ScheduleList(state.data, timeSlots, today)
                 }
             }
         }
         is UiState.BusinessError -> ErrorState(state.message, onRetry)
         is UiState.NetworkError -> ErrorState(state.message, onRetry)
         is UiState.UnexpectedError -> ErrorState(state.message, onRetry)
+    }
+}
+
+/** The previous flat rendering, unchanged in content - now one of two views. */
+@Composable
+private fun ScheduleList(
+    entries: List<TimetableEntry>,
+    timeSlots: List<TimeSlot>,
+    today: String
+) {
+    val sortedEntries = remember(entries, today) {
+        entries.sortedByDescending { it.dayOfWeek == today }
+    }
+    val timeSlotsById = remember(timeSlots) { timeSlots.associateBy { it.id } }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
+        items(sortedEntries, key = { it.hashCode() }) { entry ->
+            val isToday = entry.dayOfWeek == today
+            TimetableCard {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        IconBadge(Icons.Default.Schedule, tint = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(entry.courseOfferingId?.let { "Course #$it" } ?: entry.courseId ?: "Course —", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                if (isToday) {
+                                    StatusPill("TODAY")
+                                }
+                            }
+                            val slotLabel = entry.timeSlotId?.let { id -> timeSlotsById[id]?.displayRange() ?: "Slot $id" }
+                            val dayAndSlot = listOfNotNull(entry.dayOfWeek, slotLabel).joinToString(" · ")
+                            if (dayAndSlot.isNotBlank()) {
+                                Text(dayAndSlot, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    if (entry.ttStatus != null) {
+                        StatusPill(entry.ttStatus, tint = MaterialTheme.colorScheme.tertiary)
+                    }
+                }
+                val details = listOfNotNull(
+                    entry.roomId?.let { "Room $it" },
+                    entry.facultyId?.let { "Faculty $it" },
+                    entry.sessionTypeId
+                ).joinToString(" · ")
+                if (details.isNotBlank()) {
+                    Text(details, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
+                }
+            }
+        }
     }
 }
 

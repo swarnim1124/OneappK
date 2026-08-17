@@ -2,8 +2,15 @@
 
 package com.xsc.oneapp.feature.dashboard.ui.components
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -11,15 +18,16 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -29,41 +37,31 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.EventAvailable
-import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Work
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge as M3Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,17 +77,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import com.xsc.oneapp.feature.dashboard.domain.model.DashboardStat
 import com.xsc.oneapp.feature.dashboard.domain.model.DashboardTab
 import com.xsc.oneapp.feature.dashboard.domain.model.ModuleItem
-import com.xsc.oneapp.feature.dashboard.domain.model.QuickAction
 import com.xsc.oneapp.feature.dashboard.ui.viewmodel.DashboardState
 import com.xsc.sdk.theme.LocalSpacing
 import com.xsc.sdk.theme.OneAppMotion
@@ -117,26 +112,6 @@ fun getIconForModule(iconName: String): ImageVector {
     }
 }
 
-fun getIconForStat(iconName: String): ImageVector {
-    return when (iconName) {
-        "ic_clock" -> Icons.Default.Schedule
-        "ic_clock_outline" -> Icons.Default.AccessTime
-        "ic_rupee" -> Icons.Default.CurrencyRupee
-        "ic_document" -> Icons.Default.Description
-        else -> Icons.Default.BarChart
-    }
-}
-
-fun getIconForQuickAction(iconName: String): ImageVector {
-    return when (iconName) {
-        "ic_id_card" -> Icons.Default.Badge
-        "ic_qr_code" -> Icons.Default.QrCode
-        "ic_users" -> Icons.Default.People
-        "ic_chart" -> Icons.Default.BarChart
-        else -> Icons.Default.FlashOn
-    }
-}
-
 /**
  * Adds a spring-driven press scale to any surface. Extracted because six different
  * dashboard surfaces need identical feedback and were previously plain `Modifier
@@ -153,14 +128,17 @@ private fun Modifier.pressScale(interactionSource: MutableInteractionSource): Mo
     return this.scale(scale)
 }
 
+/**
+ * isDarkMode/onThemeToggle no longer live here - the redesigned top bar dropped the
+ * theme toggle icon (see the Stitch Home mock); that same control is now a row inside
+ * SidebarView, reachable from every tab via the hamburger menu.
+ */
 @Composable
 fun DashboardTopBar(
     onMenuTap: () -> Unit,
     unreadCount: Int,
     onNotificationTap: () -> Unit,
-    onProfileTap: () -> Unit,
-    isDarkMode: Boolean,
-    onThemeToggle: () -> Unit
+    onProfileTap: () -> Unit
 ) {
     val spacing = LocalSpacing.current
 
@@ -191,21 +169,22 @@ fun DashboardTopBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        IconButton(onClick = onThemeToggle) {
-            Icon(
-                imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                contentDescription = if (isDarkMode) "Switch to light theme" else "Switch to dark theme",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
+        // Theme toggle moved off this bar to match the redesigned top bar (see the
+        // Stitch Home mock - just menu / wordmark / bell / avatar). The control itself
+        // isn't gone: it's now a row inside SidebarView so dark/light mode stays
+        // reachable from every tab, not just Home.
         IconButton(onClick = onNotificationTap) {
-            // A proper M3 badge replaces the hand-drawn dot, so the count is announced
-            // rather than being a decorative circle screen readers skip.
+            // Plain dot rather than a numeric M3Badge, matching the mock - the count is
+            // still real (unreadCount), just not printed on the bell itself; it's
+            // announced via contentDescription for accessibility instead.
             BadgedBox(
                 badge = {
                     if (unreadCount > 0) {
-                        M3Badge { Text(unreadCount.toString()) }
+                        M3Badge(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clearAndSetSemantics { }
+                        )
                     }
                 }
             ) {
@@ -304,7 +283,9 @@ fun SidebarView(
     state: DashboardState,
     onClose: () -> Unit,
     onModuleSelect: (ModuleItem) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    isDarkMode: Boolean,
+    onThemeToggle: () -> Unit
 ) {
     val spacing = LocalSpacing.current
 
@@ -414,6 +395,38 @@ fun SidebarView(
                 Spacer(modifier = Modifier.weight(1f))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+                // The redesigned top bar no longer carries a theme toggle icon (see
+                // DashboardTopBar) - this row is where that same isDarkMode/onThemeToggle
+                // control now lives, so dark/light mode stays reachable from every tab.
+                Surface(
+                    onClick = onThemeToggle,
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .padding(horizontal = spacing.lg, vertical = spacing.md),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(spacing.md))
+                        Text(
+                            text = "Dark mode",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        androidx.compose.material3.Switch(checked = isDarkMode, onCheckedChange = { onThemeToggle() })
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 SidebarRow(
                     icon = Icons.AutoMirrored.Filled.Logout,
                     label = "Sign out",
@@ -435,7 +448,7 @@ fun SidebarView(
 }
 
 /**
- * Scrim tap-to-dismiss, labelled for screen readers instead of being an unnamed
+ * Scrim tap-to-dismiss, labeled for screen readers instead of being an unnamed
  * full-screen click target.
  *
  * The label goes through `clickable`'s own `onClickLabel` rather than a separate
@@ -487,398 +500,394 @@ private fun SidebarRow(
     }
 }
 
+/** One-line description shown under each module's name in [PinModulesDialog].
+ * TEMPORARY: ModuleItem has no description field from the backend - see Backend
+ * Endpoint Requirements. Falls back to a generic line for any module id not in this
+ * (deliberately small, catalog-matching) map, so an unrecognized id never renders
+ * blank. */
+private fun moduleDescriptionFor(moduleId: String): String = when (moduleId) {
+    "attendance" -> "View presence records"
+    "timetable" -> "Weekly class schedule"
+    "fees" -> "Payment history & dues"
+    "academics" -> "Courses, syllabus & grades"
+    "exams" -> "Schedules & hall tickets"
+    "library" -> "Digital resources & loans"
+    "placements" -> "Drives & applications"
+    else -> "Quick access from your dashboard"
+}
+
+/**
+ * The "Modules" bottom tab - a proper directory of every module the signed-in user
+ * can open, replacing what used to be a permanent "Curriculum modules loading"
+ * placeholder (see DashboardScreen's old CurriculumTab). Renders the exact same
+ * [DashboardState.modules] list Home's "Your Workspace" grid and the sidebar already
+ * use, just as full-width, scannable rows instead of an icon grid - this is the
+ * screen a student opens specifically to browse and read about what's available,
+ * not to glance at.
+ *
+ * Three states, matching [DashboardState.isModulesLoading] / [DashboardState.modules]:
+ * loading (skeleton rows, not a bare spinner), empty (a real empty state - only
+ * reachable if a backend ever returns zero accessible modules, since
+ * DashboardRepositoryImpl always falls back to the built-in catalog), and populated.
+ */
 @Composable
-fun PinnedInfoSection(
-    pinnedModules: List<ModuleItem>,
-    onManageClick: () -> Unit,
-    onModuleClick: (ModuleItem) -> Unit,
-    onUnpin: (String) -> Unit
+fun ModulesTab(
+    state: DashboardState,
+    onNavigateToModule: (String) -> Unit
 ) {
     val spacing = LocalSpacing.current
+    val hasFeesAlert = state.stats.firstOrNull { it.id == "fees" }?.tag == "Due now"
 
-    if (pinnedModules.isEmpty()) {
-        // The dashed-border placeholder is replaced by a proper outlined card: the same
-        // "nothing here yet, tap to add" message without the hand-drawn look.
-        Card(
-            onClick = onManageClick,
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.medium,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    when {
+        state.isModulesLoading && state.modules.isEmpty() -> ModulesLoadingSkeleton()
+        state.modules.isEmpty() -> DashboardPlaceholder(
+            icon = Icons.Default.Dashboard,
+            title = "No modules available",
+            message = "Modules your institution enables for you will appear here."
+        )
+        else -> LazyColumn(
+            contentPadding = PaddingValues(
+                horizontal = spacing.screenHorizontal,
+                vertical = spacing.lg
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            verticalArrangement = Arrangement.spacedBy(spacing.md)
         ) {
-            Row(
-                modifier = Modifier.padding(spacing.lg),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.PushPin,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(spacing.md))
-                Column {
-                    Text(
-                        "Pinned",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Pin modules here for quick access.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    } else {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            item {
                 Text(
-                    "Pinned",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    text = "Your modules",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.padding(bottom = spacing.xs)
                 )
-                TextButton(onClick = onManageClick) {
-                    Text("Manage", style = MaterialTheme.typography.labelLarge)
-                }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(spacing.md)) {
-                items(pinnedModules, key = { it.id }) { module ->
-                    PinnedModuleChip(
-                        module = module,
-                        onClick = { onModuleClick(module) },
-                        onUnpin = { onUnpin(module.id) }
-                    )
-                }
+            items(state.modules, key = { it.id }) { module ->
+                ModuleListCard(
+                    module = module,
+                    showAlert = hasFeesAlert && module.id == "fees",
+                    onClick = { onNavigateToModule(module.route) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun PinnedModuleChip(module: ModuleItem, onClick: () -> Unit, onUnpin: () -> Unit) {
+private fun ModuleListCard(
+    module: ModuleItem,
+    showAlert: Boolean,
+    onClick: () -> Unit
+) {
     val spacing = LocalSpacing.current
     val interactionSource = remember { MutableInteractionSource() }
 
-    Card(
+    Surface(
         onClick = onClick,
         interactionSource = interactionSource,
-        modifier = Modifier
-            .width(132.dp)
-            .pressScale(interactionSource),
-        shape = MaterialTheme.shapes.small,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(spacing.md)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    getIconForModule(module.icon),
-                    contentDescription = null,
-                    tint = module.accentColor,
-                    modifier = Modifier.size(18.dp)
-                )
-                IconButton(
-                    onClick = onUnpin,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Unpin ${module.displayName}",
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(spacing.sm))
-            Text(
-                text = module.displayName,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun PinModulesDialog(
-    allModules: List<ModuleItem>,
-    pinnedIds: Set<String>,
-    onToggle: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val spacing = LocalSpacing.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = MaterialTheme.shapes.large,
-        title = { Text("Pin modules", style = MaterialTheme.typography.headlineSmall) },
-        text = {
-            if (allModules.isEmpty()) {
-                Text(
-                    "No modules available to pin yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Column {
-                    allModules.forEach { module ->
-                        val checked = module.id in pinnedIds
-                        Surface(
-                            onClick = { onToggle(module.id) },
-                            color = Color.Transparent,
-                            shape = MaterialTheme.shapes.extraSmall,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .heightIn(min = 48.dp)
-                                    .padding(vertical = spacing.xs),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // null callback: the row owns the click, so the checkbox
-                                // must not be separately focusable or TalkBack announces
-                                // two controls for one choice.
-                                Checkbox(checked = checked, onCheckedChange = null)
-                                Spacer(modifier = Modifier.width(spacing.md))
-                                Icon(
-                                    getIconForModule(module.icon),
-                                    contentDescription = null,
-                                    tint = module.accentColor,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(spacing.md))
-                                Text(
-                                    module.displayName,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Done") }
-        }
-    )
-}
-
-@Composable
-fun StatCardView(stat: DashboardStat) {
-    val spacing = LocalSpacing.current
-
-    Card(
-        modifier = Modifier
-            .width(168.dp)
-            .heightIn(min = 112.dp)
-            // Read as one phrase; previously the value and title were two separate
-            // announcements with the tag orphaned between them.
-            .clearAndSetSemantics {
-                contentDescription = "${stat.title}: ${stat.value}. ${stat.tag}"
-            },
+        color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pressScale(interactionSource)
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(spacing.lg),
-            verticalArrangement = Arrangement.SpaceBetween
+                .heightIn(min = 76.dp)
+                .padding(horizontal = spacing.lg, vertical = spacing.md),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
+            Box {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
-                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                        .size(44.dp)
+                        .background(module.accentColor.copy(alpha = 0.12f), MaterialTheme.shapes.small),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        getIconForStat(stat.icon),
+                        getIconForModule(module.icon),
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(16.dp)
+                        tint = module.accentColor,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
-                Text(
-                    text = stat.tag,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.shapes.extraSmall
-                        )
-                        .padding(horizontal = spacing.sm, vertical = 2.dp)
-                )
+                if (showAlert) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 3.dp, y = (-3).dp)
+                            .size(10.dp)
+                            .background(MaterialTheme.colorScheme.error, CircleShape)
+                            .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                            .clearAndSetSemantics { contentDescription = "Outstanding balance" }
+                    )
+                }
             }
-            Column {
+
+            Spacer(modifier = Modifier.width(spacing.lg))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    stat.value,
-                    style = MaterialTheme.typography.headlineSmall,
+                    module.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    stat.title,
-                    style = MaterialTheme.typography.labelMedium,
+                    moduleDescriptionFor(module.id),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
+
+            Spacer(modifier = Modifier.width(spacing.sm))
+
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+/** Skeleton rows shown while [DashboardState.isModulesLoading] is true. A shared soft
+ * pulse (rather than per-row independent animation) reads as one loading surface
+ * instead of several unrelated blinking rectangles. */
+@Composable
+private fun ModulesLoadingSkeleton() {
+    val spacing = LocalSpacing.current
+    val transition = rememberInfiniteTransition(label = "modulesSkeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "modulesSkeletonAlpha"
+    )
+    val shimmerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = spacing.screenHorizontal, vertical = spacing.lg),
+        verticalArrangement = Arrangement.spacedBy(spacing.md)
+    ) {
+        repeat(5) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 76.dp)
+                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium)
+                    .padding(horizontal = spacing.lg, vertical = spacing.md),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(shimmerColor, MaterialTheme.shapes.small)
+                )
+                Spacer(modifier = Modifier.width(spacing.lg))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.45f)
+                            .height(14.dp)
+                            .background(shimmerColor, MaterialTheme.shapes.extraSmall)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.7f)
+                            .height(11.dp)
+                            .background(shimmerColor, MaterialTheme.shapes.extraSmall)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "Manage Pinned Modules" - up to [com.xsc.oneapp.feature.dashboard.ui.viewmodel.MAX_PINNED_MODULES]
+ * modules pinned to the Home "Your Workspace" grid.
+ *
+ * The six-dot drag handle is visual only for now: [ModuleItem]s are pinned as a Set,
+ * which has no order to persist, so real drag-to-reorder needs pinned order to become
+ * a stored List first (see Backend Endpoint Requirements). Toggling on/off is fully
+ * functional and goes through the same onToggle -> togglePinnedModule ->
+ * TogglePinnedModuleUseCase path as before.
+ */
+@Composable
+fun PinModulesDialog(
+    allModules: List<ModuleItem>,
+    pinnedIds: Set<String>,
+    atPinLimit: Boolean,
+    onToggle: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val spacing = LocalSpacing.current
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.heightIn(max = 560.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = spacing.xl, end = spacing.md, top = spacing.lg, bottom = spacing.sm),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Manage Pinned Modules",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    "Select up to 4 modules to pin to your dashboard for quick access.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = spacing.xl, vertical = spacing.sm)
+                )
+
+                if (allModules.isEmpty()) {
+                    Text(
+                        "No modules available to pin yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(spacing.xl)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f, fill = false),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = spacing.lg,
+                            vertical = spacing.sm
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(spacing.sm)
+                    ) {
+                        items(allModules, key = { it.id }) { module ->
+                            val checked = module.id in pinnedIds
+                            val rowEnabled = checked || !atPinLimit
+                            PinnableModuleRow(
+                                module = module,
+                                checked = checked,
+                                enabled = rowEnabled,
+                                onToggle = { onToggle(module.id) }
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(spacing.lg),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                    Spacer(modifier = Modifier.width(spacing.sm))
+                    // A plain Button, not the shared PrimaryButton: that component always
+                    // fills its row (a full-width CTA is its whole contract), which is
+                    // wrong for a small paired "Cancel / Save Selection" footer button.
+                    androidx.compose.material3.Button(
+                        onClick = onDismiss,
+                        shape = com.xsc.sdk.theme.OneAppPillShape,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        elevation = androidx.compose.material3.ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    ) {
+                        Text("Save Selection", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-fun ModuleCardView(modifier: Modifier = Modifier, module: ModuleItem, onClick: () -> Unit) {
+private fun PinnableModuleRow(
+    module: ModuleItem,
+    checked: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
     val spacing = LocalSpacing.current
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
 
-    // Accent wash deepens slightly on press - motion the user feels rather than sees.
-    val containerColor by animateColorAsState(
-        targetValue = if (pressed) {
-            module.accentColor.copy(alpha = 0.10f)
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
-        animationSpec = OneAppMotion.settleSpring(),
-        label = "moduleCardContainer"
-    )
-
-    Card(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        modifier = modifier
-            .aspectRatio(1f)
-            .pressScale(interactionSource),
+    Surface(
+        onClick = onToggle,
+        enabled = enabled,
+        color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.outlineVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(spacing.sm),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .heightIn(min = 64.dp)
+                .padding(horizontal = spacing.md, vertical = spacing.sm),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                Icons.Default.DragIndicator,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(spacing.sm))
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(40.dp)
                     .background(module.accentColor.copy(alpha = 0.12f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = getIconForModule(module.icon),
+                    getIconForModule(module.icon),
                     contentDescription = null,
                     tint = module.accentColor,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(spacing.md))
-            Text(
-                text = module.displayName,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-fun QuickActionRow(action: QuickAction) {
-    val spacing = LocalSpacing.current
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp),
-        shape = MaterialTheme.shapes.small,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = spacing.lg),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(MaterialTheme.shapes.extraSmall)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    getIconForQuickAction(action.icon),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
+            Spacer(modifier = Modifier.width(spacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    module.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    moduleDescriptionFor(module.id),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Spacer(modifier = Modifier.width(spacing.lg))
-            Text(
-                action.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "Soon",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.shapes.extraSmall
-                    )
-                    .padding(horizontal = spacing.sm, vertical = 2.dp)
-            )
             Spacer(modifier = Modifier.width(spacing.sm))
-            Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp)
-            )
+            androidx.compose.material3.Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }
 
 @Composable
-fun SectionHeader(title: String, trailing: String? = null) {
+fun SectionHeader(title: String, trailing: String? = null, onTrailingClick: (() -> Unit)? = null) {
     val spacing = LocalSpacing.current
 
     Row(
@@ -894,11 +903,21 @@ fun SectionHeader(title: String, trailing: String? = null) {
             color = MaterialTheme.colorScheme.onBackground
         )
         if (trailing != null) {
-            Text(
-                text = trailing,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            // onTrailingClick is additive and opt-in: every existing call site passes
+            // only `trailing` and keeps the old plain-text look. "Your Workspace"'s
+            // "Edit" link is the first caller to pass it, styled as a link and wired
+            // to open the pin picker.
+            if (onTrailingClick != null) {
+                TextButton(onClick = onTrailingClick) {
+                    Text(text = trailing, style = MaterialTheme.typography.labelMedium)
+                }
+            } else {
+                Text(
+                    text = trailing,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

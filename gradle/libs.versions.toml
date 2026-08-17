@@ -25,6 +25,11 @@ turbine = "1.1.0"
 googleServices = "4.4.2"
 firebaseBom = "33.7.0"
 firebaseCrashlyticsPlugin = "3.0.2"
+# Razorpay Checkout (Android). Ships its own consumer ProGuard rules; the extra
+# keep rules in app/proguard-rules.pro cover the reflection the SDK does on its
+# own callback interfaces under R8 full mode.
+razorpay = "1.6.40"
+zxing = "3.5.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -63,6 +68,8 @@ kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
+razorpay-checkout = { group = "com.razorpay", name = "checkout", version.ref = "razorpay" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 android-gradle-plugin = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }
 kotlin-gradle-plugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 hilt-gradle-plugin = { group = "com.google.dagger", name = "hilt-android-gradle-plugin", version.ref = "hilt" }

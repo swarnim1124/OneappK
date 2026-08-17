@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -21,7 +22,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -41,6 +46,12 @@ import com.xsc.sdk.theme.OneAppMotion
  *    clipping its label at large system font scales.
  *  - The spinner carries a content description; a loading button previously announced
  *    itself to TalkBack as an empty button.
+ *
+ * [shape] and [containerGradient] are optional, additive parameters (default to the
+ * previous flat/`shapes.small` look) so every existing call site is visually unchanged.
+ * They exist so a screen being restyled to a Stitch design (e.g. Login) can opt into a
+ * pill-shaped, gradient-filled button without duplicating this component's press
+ * animation, loading crossfade and accessibility semantics.
  */
 @Composable
 fun PrimaryButton(
@@ -48,7 +59,9 @@ fun PrimaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    shape: Shape = MaterialTheme.shapes.small,
+    containerGradient: Brush? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -62,13 +75,22 @@ fun PrimaryButton(
         onClick = onClick,
         enabled = enabled && !isLoading,
         interactionSource = interactionSource,
-        shape = MaterialTheme.shapes.small,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
-            disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-        ),
+        shape = shape,
+        colors = if (containerGradient != null) {
+            ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = Color.Transparent,
+                disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+            )
+        } else {
+            ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f),
+                disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+            )
+        },
         elevation = ButtonDefaults.buttonElevation(
             defaultElevation = 0.dp,
             pressedElevation = 0.dp
@@ -77,6 +99,15 @@ fun PrimaryButton(
             .fillMaxWidth()
             .heightIn(min = 52.dp)
             .scale(scale)
+            .let { base ->
+                if (containerGradient != null) {
+                    base
+                        .background(brush = containerGradient, shape = shape)
+                        .alpha(if (enabled && !isLoading) 1f else 0.38f)
+                } else {
+                    base
+                }
+            }
     ) {
         AnimatedContent(
             targetState = isLoading,

@@ -42,6 +42,7 @@ class SessionManager @Inject constructor(
 
     @Volatile private var userId: String? = null
     @Volatile private var displayName: String? = null
+    @Volatile private var institutionIdClaim: Int? = null
 
     init {
         refreshFromToken(tokenManager.accessToken)
@@ -56,6 +57,7 @@ class SessionManager @Inject constructor(
         if (token.isNullOrBlank()) {
             userId = null
             displayName = null
+            institutionIdClaim = null
             _currentEmail.value = null
             _currentRole.value = null
             _currentPermissions.value = emptyList()
@@ -70,9 +72,23 @@ class SessionManager @Inject constructor(
         val email = claims["email"] as? String
         val roles = (claims["roles"] as? List<*>)?.firstOrNull()?.toString()
         val permissions = (claims["permissions"] as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
-        val name = claims["name"] as? String ?: claims["given_name"] as? String
+        // Tried in order - different deployments/JWT issuers use different claim
+        // names for "the name to show", and none of these are in the documented
+        // AAA_API_CONTRACT.md login response (that only carries userId/email/roles/
+        // institutionId - see LoginUserDTO), so a token that omits all of these is a
+        // real, expected case, not a bug - see the emailAsName fallback below.
+        val name = NAME_CLAIM_KEYS.firstNotNullOfOrNull { key -> (claims[key] as? String)?.trim()?.takeIf { it.isNotBlank() } }
+        val emailAsName = email?.substringBefore("@")
+            ?.replace(Regex("[._]+"), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?.split(" ")
+            ?.joinToString(" ") { part -> part.replaceFirstChar { c -> c.uppercaseChar() } }
 
-        displayName = name ?: email?.substringBefore("@")
+        displayName = name ?: emailAsName
+        institutionIdClaim = (
+            claims["institutionId"] ?: claims["institution_id"] ?: claims["instId"] ?: claims["inst_id"]
+        )?.let(::normalizeIdClaim)?.toIntOrNull()
         _currentEmail.value = email
         _currentRole.value = roles
         _currentPermissions.value = permissions
@@ -81,10 +97,20 @@ class SessionManager @Inject constructor(
 
     fun getUserId(): String? = userId?.let { DEV_FORCE_USER_ID ?: it }
 
-    /** Institution ID captured from the login response (see [TokenManager.institutionId] -
-     * it isn't a JWT claim, so it can't be derived in [refreshFromToken]). Null until a
-     * successful login has saved one. */
-    fun getInstitutionId(): Int? = tokenManager.institutionId
+    /**
+     * Institution ID, preferring the one captured from the login response (see
+     * [TokenManager.institutionId]) since that is the contract-documented source.
+     *
+     * Falls back to a JWT claim (`institutionId`/`institution_id`/`instId`/`inst_id`)
+     * when that's unset - e.g. an existing session signed in before this field was
+     * added, or a login response that omitted `user.institutionId`. This is the same
+     * defensive multi-key read this codebase already uses elsewhere for fields the
+     * documented contract and the live backend don't quite agree on: costs nothing if
+     * the claim isn't there, and is the difference between every `inst_id`-scoped
+     * screen (Timetable in particular - see TimetableRepositoryImpl) working after a
+     * fresh login versus needing a full re-login before "INST_ID is required" clears.
+     */
+    fun getInstitutionId(): Int? = tokenManager.institutionId ?: institutionIdClaim
 
     /**
      * Gson decodes JWT claims into `Map<String, Any?>` with no schema, so every JSON
@@ -103,7 +129,23 @@ class SessionManager @Inject constructor(
         }
     }
 
-    fun getDisplayName(): String = displayName ?: "there"
+    /**
+     * Full display name for the signed-in user, e.g. for a profile header. Falls back
+     * to a title-cased email local-part ("aarav.sharma" -> "Aarav Sharma") when the
+     * token carries no name claim, and finally to a generic, honest placeholder - never
+     * a literal like "there" or a fabricated person's name, both of which read as a
+     * bug rather than a loading state.
+     */
+    fun getDisplayName(): String = displayName ?: DEFAULT_DISPLAY_NAME
+
+    /**
+     * First token of [getDisplayName] - what a greeting ("Good afternoon, Aarav")
+     * or an avatar initial should use instead of the full name. Split on whitespace
+     * only: a hyphenated or single-word name is returned whole rather than further
+     * chopped.
+     */
+    fun getFirstName(): String =
+        getDisplayName().trim().substringBefore(' ').ifBlank { DEFAULT_DISPLAY_NAME }
 
     /**
      * Defense-in-depth only. [currentPermissions] was captured from the JWT and unit
@@ -143,5 +185,20 @@ class SessionManager @Inject constructor(
          * do not commit a non-null value.
          */
         private val DEV_FORCE_USER_ID: String? = null
+
+        /** Candidate JWT claim keys for a human-readable name, tried in this order.
+         * No single issuer/deployment is confirmed to send all of these - trying the
+         * whole list costs nothing and means a token from a differently-configured
+         * auth service still resolves a name instead of falling through to email. */
+        private val NAME_CLAIM_KEYS = listOf(
+            "name", "given_name", "first_name", "firstName",
+            "full_name", "fullName", "preferred_username"
+        )
+
+        /** Shown only when the token has no name claim and no email to derive one
+         * from - effectively "unauthenticated" or a malformed token. Deliberately a
+         * role-shaped word (matches DashboardState.userRole's own "Student" default),
+         * never a placeholder like "there" that reads as broken UI. */
+        private const val DEFAULT_DISPLAY_NAME = "Student"
     }
 }

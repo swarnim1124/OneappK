@@ -23,6 +23,7 @@ dependencies {
     implementation(project(":sdk:XscAuthSDK"))
     implementation(project(":sdk:XscThemeSDK"))
     implementation(project(":sdk:XscCommonUI"))
+    implementation(project(":sdk:XscQRCodeSDK"))
 
     implementation(libs.androidx.core.ktx)
     implementation(platform(libs.androidx.compose.bom))

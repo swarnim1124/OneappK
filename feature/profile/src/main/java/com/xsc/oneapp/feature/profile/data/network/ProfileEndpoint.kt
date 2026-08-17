@@ -8,6 +8,7 @@ object ProfileEndpoint {
         const val FAMILY_DETAIL = "sm_family_detail"
         const val MEDICAL_DETAIL = "sm_medical_detail"
         const val SETTINGS = "sm_settings"
+        const val MFA = "sm_mfa"
     }
     
     object Actions {
@@ -17,6 +18,7 @@ object ProfileEndpoint {
         const val EMERGENCY_CONTACT = "emergencyContact"
         const val MEDICAL_DETAIL = "medicalDetail"
         const val USER_PREFERENCE = "userPreference"
+        const val MFA = "mfa"
     }
     
     object ActionTypes {

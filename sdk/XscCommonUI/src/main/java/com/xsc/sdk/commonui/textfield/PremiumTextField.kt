@@ -20,14 +20,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.xsc.sdk.theme.OneAppMotion
+import com.xsc.sdk.theme.OneAppPillShape
 
 /**
  * Shared text field used by login, forgot-password, and every profile form screen.
@@ -46,6 +49,11 @@ import com.xsc.sdk.theme.OneAppMotion
  *    autocorrect learning on the entered value.
  *  - The caller's [modifier] now reaches the field itself rather than only the wrapper,
  *    so a caller can size it.
+ *
+ * [filled] is an additive, opt-in parameter (default `false` preserves the outlined look
+ * everywhere it isn't passed) that renders a borderless, pill-shaped field on a muted
+ * surface - the style used by the redesigned Login screen. Existing call sites are
+ * visually unaffected.
  */
 @Composable
 fun PremiumTextField(
@@ -61,7 +69,9 @@ fun PremiumTextField(
     onPasswordVisibilityToggle: (() -> Unit)? = null,
     error: String? = null,
     singleLine: Boolean = true,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    filled: Boolean = false,
+    textStyle: TextStyle = MaterialTheme.typography.bodyLarge
 ) {
     val hasError = error != null
     val effectiveKeyboardType = if (isSecure) KeyboardType.Password else keyboardType
@@ -116,15 +126,27 @@ fun PremiumTextField(
             singleLine = singleLine,
             enabled = enabled,
             isError = hasError,
-            textStyle = MaterialTheme.typography.bodyLarge,
-            shape = MaterialTheme.shapes.small,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                errorBorderColor = MaterialTheme.colorScheme.error
-            ),
+            textStyle = textStyle,
+            shape = if (filled) OneAppPillShape else MaterialTheme.shapes.small,
+            colors = if (filled) {
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    errorBorderColor = MaterialTheme.colorScheme.error
+                )
+            } else {
+                OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    errorBorderColor = MaterialTheme.colorScheme.error
+                )
+            },
             modifier = Modifier.fillMaxWidth()
         )
 

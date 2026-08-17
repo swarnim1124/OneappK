@@ -2,6 +2,7 @@ package com.xsc.oneapp.navigation
 
 import android.net.Uri
 import com.xsc.oneapp.feature.attendance.navigation.AttendanceDestinations
+import com.xsc.oneapp.feature.exam.navigation.ExamDestinations
 import com.xsc.oneapp.feature.profile.navigation.ProfileDestinations
 
 /** Navigation route constants for RootNavHost's top-level graph. */
@@ -11,7 +12,11 @@ object Routes {
     const val VERIFY_OTP = "verify_otp/{resetToken}"
     const val RESET_PASSWORD = "reset_password/{resetToken}"
     const val DASHBOARD = "dashboard"
-    const val EXAMS = "exams"
+
+    /** Exam is a nested graph owned by :feature:exam - navigating here lands on its
+     * start destination (the overview). Its internal routes, including Hall Ticket,
+     * are not visible to :app. */
+    const val EXAMS = ExamDestinations.GRAPH_ROUTE
 
     /** Attendance is a nested graph owned by :feature:attendance - navigating here
      * lands on its start destination (the overview). Its internal routes are not
@@ -21,7 +26,6 @@ object Routes {
     const val CURRICULUM = "curriculum"
     const val FEES = "fees"
     const val TIMETABLE = "timetable"
-    const val HALL_TICKET = "hall_ticket/{scheduleId}"
     const val MODULE_PATTERN = "module/{moduleName}"
 
     fun module(name: String) = "module/$name"
@@ -51,8 +55,6 @@ object Routes {
             "timetable" -> TIMETABLE
             else -> module(key)
         }
-
-    fun hallTicket(scheduleId: String) = "hall_ticket/${Uri.encode(scheduleId)}"
 
     fun verifyOtp(resetToken: String) = "verify_otp/${Uri.encode(resetToken)}"
 

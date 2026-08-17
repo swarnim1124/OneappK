@@ -19,7 +19,7 @@ data class ModuleItem(
         companion object {
             /**
              * Maps a raw wire value to a status, defaulting to [ACTIVE] for anything
-             * unrecognised (including null). Previously the DTO declared this enum
+             * unrecognized (including null). Previously the DTO declared this enum
              * directly, which meant Gson wrote `null` into a non-null Kotlin field for
              * any status string the backend added later - producing a module that
              * blew up at render time instead of simply showing. Unknown status must
@@ -70,7 +70,33 @@ data class QuickAction(
 
 enum class DashboardTab(val title: String, val icon: String) {
     HOME("Home", "ic_home"),
-    CURRICULUM("Curriculum", "ic_school"),
-    NOTIFICATIONS("Notifications", "ic_notifications"),
+    // Display labels only - renamed to match the redesigned bottom tab bar. Enum
+    // names (and every setTab(DashboardTab.CURRICULUM/.NOTIFICATIONS) call site)
+    // are unchanged, so no navigation wiring moved.
+    CURRICULUM("Modules", "ic_school"),
+    NOTIFICATIONS("Alerts", "ic_notifications"),
     PROFILE("Profile", "ic_person")
+}
+
+/**
+ * A single row in the Home "Actions & Feed" list and the Notifications tab.
+ *
+ * TEMPORARY DATA SOURCE: no activity/notification feed endpoint exists anywhere in the
+ * codebase yet (sdk/XscNotificationSDK is an unimplemented placeholder). DashboardViewModel
+ * currently populates this from a static in-memory list - see its
+ * Backend Endpoint Requirements note for the real endpoint this should be replaced with.
+ */
+data class NotificationItem(
+    val id: String,
+    val title: String,
+    val message: String,
+    val timestamp: String,
+    val icon: String,
+    val isUnread: Boolean,
+    val group: NotificationGroup
+)
+
+enum class NotificationGroup(val label: String) {
+    TODAY("TODAY"),
+    EARLIER("EARLIER")
 }

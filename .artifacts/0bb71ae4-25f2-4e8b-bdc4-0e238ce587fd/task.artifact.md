@@ -1,0 +1,21 @@
+# Tasks - MFA Integration
+
+- [ ] **Feature: Login**
+    - [x] Modify `LoginResponseDTOs.kt` to add MFA fields
+    - [x] Modify `LoginModels.kt` to add MFA fields
+    - [x] Modify `LoginResultMapper.kt` to map MFA fields
+    - [x] Modify `LoginState.kt` to add MFA state
+    - [x] Modify `LoginEvent.kt` to add MFA events
+    - [x] Modify `LoginViewModel.kt` to handle MFA challenge and verification
+    - [x] Modify `LoginScreen.kt` to add MFA UI
+    - [ ] Modify `LoginScreen.kt` to add MFA UI
+- [x] **Feature: Profile (Security Settings)**
+    - [x] Create `SecurityRepository.kt` & `SecurityRepositoryImpl.kt`
+    - [x] Create `SecurityModels.kt`
+    - [x] Create `SecurityViewModel.kt`
+    - [x] Create `SecurityScreen.kt`
+    - [x] Update `ProfileNavigation.kt`
+    - [x] Update `ProfileDashboardScreen.kt`
+- [ ] **Verification**
+    - [ ] Unit tests for `LoginViewModel`
+    - [ ] Unit tests for `SecurityViewModel`

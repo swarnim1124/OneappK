@@ -19,6 +19,8 @@ object LoginResultMapper {
         token = dto.token,
         refreshToken = dto.refreshToken,
         captchaRequired = dto.captchaRequired ?: false,
+        mfaRequired = dto.mfaRequired ?: false,
+        challengeToken = dto.challengeToken,
         institutionId = dto.user?.institutionId
     )
 

@@ -55,6 +55,18 @@ class LoginViewModel @Inject constructor(
             is LoginEvent.TogglePasswordVisibility -> {
                 _state.update { it.copy(isPasswordVisible = !it.isPasswordVisible) }
             }
+            is LoginEvent.OtpChanged -> {
+                _state.update { it.copy(otpInput = event.otp) }
+            }
+            is LoginEvent.SubmitMfa -> {
+                performMfaVerification()
+            }
+            is LoginEvent.ToggleMfaMode -> {
+                _state.update { it.copy(isBackupCodeMode = !it.isBackupCodeMode, otpInput = "") }
+            }
+            is LoginEvent.BackToLogin -> {
+                _state.update { it.copy(isMfaRequired = false, challengeToken = null, otpInput = "") }
+            }
         }
     }
 
@@ -93,14 +105,28 @@ class LoginViewModel @Inject constructor(
 
                 val result = loginUseCase(payload)
 
-                if (!result.token.isNullOrEmpty()) {
+                if (result.captchaRequired) {
+                    _state.update { it.copy(isLoading = false) }
+                    _effect.send(LoginEffect.ShowToast("reCAPTCHA verification required", isError = true))
+                } else if (result.mfaRequired && !result.challengeToken.isNullOrEmpty()) {
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            isMfaRequired = true,
+                            challengeToken = result.challengeToken
+                        )
+                    }
+                } else if (result.mfaRequired && result.challengeToken.isNullOrEmpty()) {
+                    _state.update { it.copy(isLoading = false) }
+                    _effect.send(LoginEffect.ShowToast("MFA challenge token missing from server", isError = true))
+                } else if (!result.token.isNullOrEmpty()) {
                     tokenManager.saveTokens(result.token, result.refreshToken ?: "")
                     result.institutionId?.let { tokenManager.saveInstitutionId(it) }
                     _state.update { it.copy(isLoading = false) }
                     _effect.send(LoginEffect.NavigateToDashboard)
                 } else {
                     _state.update { it.copy(isLoading = false) }
-                    _effect.send(LoginEffect.ShowToast("Unexpected error occurred", isError = true))
+                    _effect.send(LoginEffect.ShowToast("Session token missing from server", isError = true))
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -111,10 +137,54 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    private fun performMfaVerification() {
+        val challengeToken = _state.value.challengeToken ?: return
+        val otp = _state.value.otpInput
+
+        if (otp.isBlank()) {
+            viewModelScope.launch {
+                _effect.send(LoginEffect.ShowToast("Please enter the verification code", isError = true))
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            try {
+                val payload = mapOf(
+                    "challengeToken" to challengeToken,
+                    "response" to otp
+                )
+                val result = loginUseCase(payload)
+
+                if (!result.token.isNullOrEmpty()) {
+                    tokenManager.saveTokens(result.token, result.refreshToken ?: "")
+                    result.institutionId?.let { tokenManager.saveInstitutionId(it) }
+                    _state.update { it.copy(isLoading = false) }
+                    _effect.send(LoginEffect.NavigateToDashboard)
+                } else {
+                    _state.update { it.copy(isLoading = false) }
+                    _effect.send(LoginEffect.ShowToast("Verification successful but session token missing", isError = true))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { it.copy(isLoading = false) }
+                _effect.send(LoginEffect.ShowToast(userFacingMessage(e, "Verification failed. Please try again."), isError = true))
+            }
+        }
+    }
+
     /**
      * Never forward raw exception/server text straight into UI copy - it can contain
      * backend implementation details, stack-trace fragments, or untranslated strings.
      * Map to a fixed, user-facing fallback instead.
      */
-    private fun userFacingMessage(e: Exception, fallback: String): String = fallback
+    private fun userFacingMessage(e: Exception, fallback: String): String {
+        return if (e is com.xsc.sdk.network.APIError.BusinessError) {
+            e.errorMessage
+        } else {
+            fallback
+        }
+    }
 }
